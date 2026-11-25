@@ -17,3 +17,7 @@ build/tinyos-settings.ini
 .DS_Store
 Thumbs.db
 *.swp
+
+# Python bytecode
+__pycache__/
+*.pyc
