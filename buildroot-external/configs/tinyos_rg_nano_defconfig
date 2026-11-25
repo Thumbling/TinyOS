@@ -6,6 +6,11 @@ BR2_ARM_FPU_NEON_VFPV4=y
 
 BR2_TOOLCHAIN_BUILDROOT_MUSL=y
 
+# Use the headers from the 6.12 kernel we actually ship. Buildroot needs both
+# the AS_KERNEL choice and the matching custom-header series for this case.
+BR2_KERNEL_HEADERS_AS_KERNEL=y
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_12=y
+
 BR2_TARGET_GENERIC_HOSTNAME="tinyos"
 BR2_TARGET_GENERIC_ISSUE="Welcome to TinyOS"
 BR2_TARGET_GENERIC_ROOT_PASSWD=""
