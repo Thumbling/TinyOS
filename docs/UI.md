@@ -2,10 +2,15 @@
 
 ## Intent
 
-TinyOS should feel like a small, deliberate device — not a desktop shrunk onto
-a 240 px screen. The UI uses a dark blue-black canvas, one strong accent per
-context, large type and generous negative space. Every screen has a single
-obvious focus and a maximum of one primary action.
+TinyOS should feel like a small, deliberate device — not a desktop shrunk onto a
+240 px screen. The interface has one focus, one obvious primary action and a
+calm surface hierarchy. Personalisation is a first-class feature: 25 palettes,
+10 animated wallpapers and 6 typefaces can be changed without leaving the
+device.
+
+The canvas is always **240 × 240**. Nothing is scaled, downsampled or rendered
+through an intermediate buffer. Text, icons, hairlines and focus rings are drawn
+at native resolution.
 
 ## Canvas
 
@@ -13,142 +18,199 @@ obvious focus and a maximum of one primary action.
 |---|---|
 | Resolution | 240 × 240 |
 | Status line | y = 0…26 |
-| Content | y = 30…204 |
+| Content | y = 30…204 (174 px high) |
 | Navigation | y = 207…235 |
 | Safe margin | 14 px left/right |
-| Corner radius | 12–20 px |
+| Corner radius | 10–20 px |
 | Border | 1 px, low-opacity line colour |
 
-## Colour tokens
+Every screen builds inside the 174 px content viewport. New screens must not
+add a fourth shell layer or draw over the status/navigation bars.
 
-| Token | Hex | Use |
-|---|---|---|
-| `BG` | `#070B10` | deepest background |
-| `BG_2` | `#0B1520` | background gradient top |
-| `SURFACE` | `#101B25` | cards and rows |
-| `SURFACE_2` | `#162632` | raised surfaces |
-| `LINE` | `#1D3140` | hairlines and borders |
-| `TEXT` | `#F2F8FB` | primary text |
-| `MUTED` | `#8DA3B3` | secondary text |
-| `DIM` | `#5B7180` | metadata |
-| `CYAN` | `#3DE1FF` | primary accent |
-| `CYAN_DEEP` | `#0C6E86` | gradient partner |
-| `VIOLET` | `#9A86FF` | media/library accent |
-| `GREEN` | `#48E6A0` | system/positive |
-| `AMBER` | `#FFB454` | settings/about accent |
-| `RED` | `#FF7070` | destructive actions |
+## Colour roles
 
-Accents are used for icons, indicators, values and one primary action — not as
-large flat fills. This keeps the RG Nano panel, which has limited brightness,
-from looking like a toy.
+Colours are **runtime tokens**, not compile-time constants. `tinyos_theme_apply()`
+switches the active palette, refreshes the shared styles and the shell rebuilds
+its background. Modules use semantic roles only:
+
+| Token | Role |
+|---|---|
+| `BG` | deepest background |
+| `BG_2` | background gradient top / navigation base |
+| `SURFACE` | cards and rows |
+| `SURFACE_2` | raised surfaces, selected rows, pills |
+| `LINE` | hairlines and borders |
+| `TEXT` | primary text |
+| `MUTED` | secondary text |
+| `DIM` | metadata and hints |
+| `CYAN` / accent | focus, active navigation, primary action |
+| `CYAN_DEEP` | gradient partner for artwork |
+| `VIOLET` / accent 2 | media and secondary highlights |
+| `GREEN` | positive state |
+| `AMBER` | attention / settings |
+| `RED` | destructive actions |
+| `ON_ACCENT` | text/icon colour on an accent fill |
+
+### The 25 palettes
+
+`Abyss`, `Aurora`, `Ember`, `Rosewood`, `Cobalt`, `Lavender`, `Forest`,
+`Sandstone`, `Nord`, `Gruvbox`, `Dracula`, `Tokyo Night`, `Solarized`,
+`Monochrome`, `Paper`, `Porcelain`, `Mint Light`, `Solar Flare`, `Cyberpunk`,
+`Vaporwave`, `Terminal`, `Amber CRT`, `Ice`, `Cosmos`, `Candy`.
+
+Nineteen are dark (including the strictly monochrome palette); `Paper`,
+`Porcelain`, `Mint Light` and `Solar Flare` are light. Every foreground/background
+pair used for text, metadata, icons and buttons is checked for at least
+**4.5:1** contrast on both `SURFACE` and `SURFACE_2`. `ON_ACCENT` is checked
+against the accent fill.
+
+Theme preview is a live miniature: it updates its gradient, sample cards, text
+and accent bar as the user steps through the gallery. Applying a theme rebuilds
+the shell once, so no old colours or fonts remain behind.
 
 ## Typography
 
-Montserrat, bundled with LVGL:
+Six families, each converted to static 4-bpp LVGL bitmaps at **8, 10, 12, 14,
+16, 20, 24 and 28 px**:
+
+| Family | Character |
+|---|---|
+| Montserrat | default; geometric and friendly |
+| Inter | neutral, compact UI text |
+| IBM Plex Sans | technical, slightly narrow |
+| Space Grotesk | expressive display text |
+| JetBrains Mono | coding / high-contrast monospaced |
+| Atkinson Hyperlegible | maximum character differentiation |
+
+Only printable ASCII (`U+0020`–`U+007E`) is generated for the five custom
+families. All symbols and icons always use LVGL's built-in Montserrat, so a
+typeface change can never remove a battery, arrow or navigation glyph.
+
+Default sizes:
 
 | Size | Use |
 |---|---|
-| 28 | home wordmark, about wordmark |
-| 24 | hero orb letter, about title |
+| 28 | home wordmark |
+| 24 | about wordmark, hero letter |
 | 20 | screen titles |
-| 16 | system values, nav icons |
+| 16 | system values, card values |
 | 14 | body, status time |
-| 10 | labels, secondary values |
-| 8 | eyebrows, metadata, status brand |
+| 10 | labels, values, secondary copy |
+| 8 | eyebrows, hints, metadata |
 
-Text is never smaller than 8 px. Long labels use `LV_LABEL_LONG_MODE_DOTS`; only
-intentional multi-line copy opts into wrapping.
+No text is smaller than 8 px. Long labels use `LV_LABEL_LONG_MODE_DOTS`; only
+deliberate multi-line copy opts into wrapping. Typeface changes rebuild the
+shell and are stored in `/data/tinyos/settings.ini`.
 
 ## Screen patterns
 
 ### Home
 
-A 212 × 94 hero card with a greeting eyebrow, the wordmark, a two-line tagline,
-a cyan “OPEN LIBRARY” pill and a gradient orb. Three quick tiles (Music,
-Library, Settings) sit below a “QUICK ACCESS” eyebrow. The hero is the visual
-anchor; the quick tiles are neutral so the accents read as navigation, not
-decoration.
+A 212 × 94 hero card with greeting, wordmark, two-line tagline, accent CTA and
+a gradient orb. Three 64 × 50 quick tiles (Music, Library, Settings) sit below
+a “QUICK ACCESS” eyebrow. The wallpaper remains visible around the cards but
+never behind body text without a solid surface.
 
 ### Library
 
-A large screen title with the subtitle “Everything in one place.” and a 2 × 2
-grid of app tiles. Each tile has a 36 px rounded icon badge, a title and a short
-subtitle. The focused tile gets a 2 px cyan ring. Footer copy “Modular by
-design.” reinforces the architecture without adding another control.
+A 2 × 2 grid of 102 × 56 app tiles with a 28 px badge, title and subtitle. The
+focused tile gets a 2 px accent ring. The footer is metadata, not a control.
 
 ### Settings
 
-Six compact rows: Brightness, Volume, 24-hour clock, Performance, About TinyOS
-and Power off. Sliders and switches live on the row, so the user never leaves
-the list to change a value. Power off is red and opens a confirmation dialog.
-Rows are 22 px high with 2 px gaps; all six fit without scrolling.
+Seven compact 20 px rows with 1 px gaps: **Appearance**, Brightness, Volume,
+24-hour clock, Performance, About TinyOS and Power off. All seven fit without
+scrolling. Sliders and switches live inline. Power off is red and opens a
+confirmation overlay. Appearance is always the first row so personalisation is
+discoverable.
+
+### Appearance
+
+Four 24 px rows: Theme, Wallpaper, Motion and Typeface. Each row shows its
+current value in a compact pill; A opens the corresponding picker, B returns to
+Settings.
+
+### Themes
+
+A live 212 × 62 preview card, palette name, `NN / 25` counter and a hint line.
+X/Y or L/R steps through the gallery; A applies immediately and rebuilds the
+UI. The preview never uses the old palette for its sample cards.
+
+### Wallpapers
+
+A 212 × 58 animated preview above three 20 px rows: Wallpaper, Speed and Reduce
+motion. Style and speed cycle on A; X/Y or L/R adjusts the focused row. Changes
+are saved and applied to the shell wallpaper immediately, so the preview and
+the real background never drift apart.
+
+### Typeface
+
+Six 20 px rows. Each row renders its name in the UI font and `Aa 012` in the
+candidate family, with a selected marker and check. A applies the family and
+rebuilds the shell.
 
 ### Music
 
-A 84 px album card with a gradient and a vinyl-style disc, track title, artist,
-format, progress bar, elapsed/total time and three transport buttons. The play
-button is 44 px and cyan; previous/next are 30 px neutral buttons. A timer
-refreshes position every 700 ms while the screen is alive.
+An 84 px album card, vinyl disc, title, artist, format, progress bar, elapsed
+and total time, and three transport buttons. Play is 44 px; previous/next are
+30 px with **6 px gaps** (no overlapping hit areas). X/Y or L/R changes track
+without moving focus. A 700 ms timer updates the
+position only while the screen exists.
 
 ### System
 
-Four metric cards: CPU MHz, memory, battery and uptime. Each card has an
-eyebrow label, a large value and a small note. A back button and a footer with
-the build identity complete the screen.
+Four 102 × 54 metric cards: CPU, memory, battery and uptime, each with a label,
+large value and note. A back button and build footer complete the screen.
 
 ### About
 
-A centered orb, wordmark, codename/version, a short mission statement and a
-two-line component credit. This is the “why” screen; it has no controls beyond
-Back.
+Centered orb, wordmark, codename/version, mission statement and a two-line
+component credit. Back is the only control.
 
-## Focus
+## Focus and controls
 
-Every interactive object gets:
+The RG Nano mapping is:
 
-- `LV_OBJ_FLAG_CLICKABLE`;
-- a 2 px cyan border in `LV_STATE_FOCUSED`;
-- a clear shape that remains legible at 240 × 240;
-- membership in the current `lv_group`.
+| Button | Action |
+|---|---|
+| D-pad | move focus spatially |
+| A | open / activate / cycle |
+| B or Select | back |
+| Start | Home |
+| X / Y or L / R | previous/next track, preview theme, adjust wallpaper or slider |
 
-Focus order is intentional: the first module focusable is the primary action,
-then secondary actions, then Back. The D-pad moves spatially through the group;
-A activates; B goes back.
+Every interactive object is clickable, joins the current `lv_group` and gets a
+2 px accent focus ring. The shell maintains a **back stack** for nested screens:
+Settings → Appearance → Themes → B returns to Appearance, then Settings, then
+Home. Changing tabs clears the stack.
 
 ## Motion
 
-- Screen transitions: 200 ms fade + 10 px horizontal slide.
-- Content reveals: 260–300 ms fade + 12 px vertical slide, staggered by 35 ms.
-- No infinite loops, parallax or full-screen blurs.
-- `reduce_motion` is a stored setting; modules should honour it when adding new
-  animations.
-
-The transitions are short enough to feel responsive on the V3s and are disabled
-by the small draw budget rather than by taste alone.
+- Screen entry: 200 ms fade + 10 px slide.
+- Staggered content reveal: 240–300 ms.
+- Wallpapers: slow ping-pong translations, opacity breathing and ring scaling.
+- Speed: Still, Slow, Normal, Fast. **Reduce motion** forces Still while keeping
+  the chosen speed for later.
+- Animations are stopped when their objects are deleted; no global animation
+  timer and no full-screen effects.
 
 ## Contrast and legibility
 
-- Primary text on background: > 12:1.
-- Muted text: > 5:1.
-- Accent icons on dark surfaces: > 7:1.
-- Focus ring: cyan on dark, 2 px.
-- No text over gradients without a solid card behind it.
-- Battery/time remain visible on every screen.
+- Primary text: at least 4.5:1 on every surface; most palettes exceed 7:1.
+- Metadata and dim hints: at least 4.5:1.
+- Accent icons and text: at least 4.5:1.
+- Destructive red: at least 4.5:1.
+- No text directly on a moving wallpaper; cards use opaque or near-opaque
+  surfaces.
+- Status time, brand and battery are split into separate labels so a typeface
+  without symbol glyphs cannot hide battery state.
 
 ## Performance rules
 
-- Partial rendering only; no full-screen animation buffers.
-- Reuse fonts; no runtime font loading.
-- Use solid cards and simple gradients; avoid shadows on large objects.
-- Keep the LVGL heap at 256 KB and watch `lv_mem_monitor` when adding screens.
-- Prefer one timer per screen, deleted with the screen.
-
-## Future visual work
-
-- A boot splash that matches the orb/wordmark.
-- A theme picker (accent variants) using the existing tokens.
-- Album art extraction from WAV metadata or a sidecar file.
-- A compact now-playing overlay accessible from any tab.
-
-These are intentionally not implemented yet; the current UI is the baseline,
-not a mockup.
+- Native 240 × 240 rendering; partial refresh only.
+- Static font bitmaps, no runtime font loading or rasterisation.
+- One wallpaper layer behind status/content/navigation; child shapes are clipped.
+- The wallpaper uses a small, fixed number of LVGL objects and stores its
+  animation handles so they can be stopped explicitly on deletion.
+- One status timer and at most one module timer; both die with the screen.
+- No blur, no full-screen shadow stacks, no runtime image decoding for chrome.

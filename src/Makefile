@@ -22,8 +22,11 @@ SOURCES := \
 	core/settings.c \
 	core/util.c \
 	ui/theme.c \
+	ui/fonts.c \
 	ui/widgets.c \
+	ui/wallpaper.c \
 	ui/shell.c \
+	ui/fonts/*.c \
 	modules/modules.c \
 	modules/home.c \
 	modules/apps.c \
@@ -31,6 +34,10 @@ SOURCES := \
 	modules/music.c \
 	modules/system.c \
 	modules/about.c \
+	modules/appearance.c \
+	modules/themes.c \
+	modules/wallpapers.c \
+	modules/typeface.c \
 	platform/linux/display_fbdev.c \
 	platform/linux/input_evdev.c \
 	platform/linux/power_linux.c \

@@ -15,6 +15,10 @@ void tinyos_settings_defaults(tinyos_settings *settings)
     settings->clock_24h = true;
     settings->performance = TINYOS_PERF_BALANCED;
     settings->reduce_motion = false;
+    settings->theme = 0;
+    settings->wallpaper = 0;
+    settings->wallpaper_speed = 2;
+    settings->font_family = 0;
 }
 
 bool tinyos_settings_load(tinyos_settings *settings, const char *path)
@@ -51,6 +55,14 @@ bool tinyos_settings_load(tinyos_settings *settings, const char *path)
                                                      TINYOS_PERF_TURBO);
         } else if (strcmp(key, "reduce_motion") == 0) {
             settings->reduce_motion = atoi(value) != 0;
+        } else if (strcmp(key, "theme") == 0) {
+            settings->theme = tinyos_clamp_int(atoi(value), 0, 24);
+        } else if (strcmp(key, "wallpaper") == 0) {
+            settings->wallpaper = tinyos_clamp_int(atoi(value), 0, 9);
+        } else if (strcmp(key, "wallpaper_speed") == 0) {
+            settings->wallpaper_speed = tinyos_clamp_int(atoi(value), 0, 3);
+        } else if (strcmp(key, "font_family") == 0) {
+            settings->font_family = tinyos_clamp_int(atoi(value), 0, 5);
         }
     }
     return true;
@@ -76,9 +88,15 @@ bool tinyos_settings_save(const tinyos_settings *settings, const char *path)
              "volume=%d\n"
              "clock_24h=%d\n"
              "performance=%d\n"
-             "reduce_motion=%d\n",
+             "reduce_motion=%d\n"
+             "theme=%d\n"
+             "wallpaper=%d\n"
+             "wallpaper_speed=%d\n"
+             "font_family=%d\n",
              settings->brightness, settings->volume, settings->clock_24h ? 1 : 0,
-             settings->performance, settings->reduce_motion ? 1 : 0);
+             settings->performance, settings->reduce_motion ? 1 : 0,
+             settings->theme, settings->wallpaper, settings->wallpaper_speed,
+             settings->font_family);
 
     return tinyos_write_file_atomic(path, buffer) == 0;
 }

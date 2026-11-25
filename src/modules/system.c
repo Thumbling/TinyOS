@@ -33,7 +33,7 @@ static lv_obj_t *stat_card(lv_obj_t *parent, int x, int y, const char *title,
                            lv_obj_t **value, lv_obj_t **sub)
 {
     lv_obj_t *card = tinyos_card(parent, x, y, 102, 54);
-    tinyos_gradient(card, 0x13212C, 0x0E171F);
+    tinyos_gradient(card, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
     tinyos_label(card, title, &lv_font_montserrat_8, TINYOS_COLOR_DIM, 8, 6, 86, 10);
     *value = tinyos_label(card, "-", &lv_font_montserrat_16, TINYOS_COLOR_TEXT,
                           8, 18, 86, 20);
@@ -104,7 +104,7 @@ static lv_obj_t *system_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
     lv_obj_add_style(back, &tinyos_theme.pill, 0);
     lv_obj_set_style_radius(back, 10, 0);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x14232E), 0);
+    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
     tinyos_focus(back);
     tinyos_add_click(back, back_cb, NULL);
     tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);

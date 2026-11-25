@@ -34,10 +34,14 @@ allocated in `create()` and freed in the delete callback, as `music.c` does.
 |---|---|---|---|
 | `home` | Home | hero CTA | greeting, orb, quick tiles |
 | `apps` | Library | Music tile | four app tiles |
-| `settings` | Settings | brightness | sliders, switches, confirm |
+| `settings` | Settings | Appearance | sliders, switches, confirm |
 | `music` | Music | play | WAV player, rescan, timer |
 | `system` | System | back | live CPU, memory, battery, uptime |
 | `about` | About | back | identity and component credits |
+| `appearance` | Appearance | Theme | theme, wallpaper, motion, typeface |
+| `themes` | Themes | preview card | 25 palettes, live preview |
+| `wallpapers` | Wallpapers | Wallpaper | 10 styles, speed, reduce motion |
+| `typeface` | Typeface | first family | six type families |
 
 ## Adding a module
 
@@ -87,6 +91,25 @@ const tinyos_module tinyos_module_example = {
   the order you want the user to move.
 - `LV_KEY_ESC` invokes the shell back action; `LV_KEY_HOME` jumps Home.
 - The back button is a normal focusable; include it in the group.
+- The shell keeps a back stack for nested modules. `tinyos_shell_show()` pushes
+  the current screen when opening a non-tab module; `tinyos_shell_back()` pops
+  it. Tab switches clear the stack. `tinyos_shell_reload()` rebuilds the shell
+  after a theme/typeface change and deliberately preserves the stack.
+- `tinyos_shell_set_wallpaper()` replaces only the background layer; use it for
+  live wallpaper changes instead of rebuilding the whole UI.
+
+## Runtime fonts and palettes
+
+Use `TINYOS_COLOR_*` role macros and `tinyos_theme_apply()`; never hard-code a
+second colour system. `tinyos_label()` maps the legacy Montserrat size request
+to the active UI family, while `tinyos_icon()` always stays on Montserrat so
+symbols remain available. A typeface or palette change must call
+`tinyos_shell_reload(ctx, current_id)` so all existing widgets are rebuilt.
+
+Wallpapers live behind the shell and are managed by `src/ui/wallpaper.c`. A
+module that changes wallpaper settings should persist them and call
+`tinyos_shell_set_wallpaper()` with the effective speed; a module must not add
+its own full-screen animated background.
 
 ## State and cleanup
 

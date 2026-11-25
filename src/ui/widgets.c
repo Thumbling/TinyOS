@@ -1,6 +1,11 @@
 #include "widgets.h"
 
+#include "fonts.h"
+#include "shell.h"
 #include "theme.h"
+
+#include <limits.h>
+#include <stdlib.h>
 
 static void animate_opa(void *var, int32_t value)
 {
@@ -48,7 +53,7 @@ lv_obj_t *tinyos_label(lv_obj_t *parent, const char *text, const lv_font_t *font
     else if (height > 0)
         lv_obj_set_height(label, height);
     lv_obj_set_pos(label, x, y);
-    lv_obj_set_style_text_font(label, font, 0);
+    lv_obj_set_style_text_font(label, tinyos_font_map(font), 0);
     lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
@@ -86,10 +91,91 @@ void tinyos_gradient(lv_obj_t *obj, uint32_t top, uint32_t bottom)
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
 }
 
+static int center_x(lv_obj_t *obj)
+{
+    lv_area_t area;
+    lv_obj_get_coords(obj, &area);
+    return (area.x1 + area.x2) / 2;
+}
+
+static int center_y(lv_obj_t *obj)
+{
+    lv_area_t area;
+    lv_obj_get_coords(obj, &area);
+    return (area.y1 + area.y2) / 2;
+}
+
+static lv_obj_t *spatial_focus(lv_group_t *group, uint32_t key)
+{
+    lv_obj_t *current = lv_group_get_focused(group);
+    if (!current)
+        return NULL;
+
+    int current_x = center_x(current);
+    int current_y = center_y(current);
+    int best_score = INT_MAX;
+    lv_obj_t *best = NULL;
+    uint32_t count = lv_group_get_obj_count(group);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t *candidate = lv_group_get_obj_by_index(group, i);
+        if (!candidate || candidate == current || !lv_obj_is_visible(candidate))
+            continue;
+        if (lv_obj_has_state(candidate, LV_STATE_DISABLED))
+            continue;
+
+        int x = center_x(candidate);
+        int y = center_y(candidate);
+        int dx = x - current_x;
+        int dy = y - current_y;
+        bool horizontal = key == LV_KEY_LEFT || key == LV_KEY_RIGHT;
+
+        if (horizontal) {
+            if ((key == LV_KEY_RIGHT && dx <= 4) || (key == LV_KEY_LEFT && dx >= -4))
+                continue;
+        } else {
+            if ((key == LV_KEY_DOWN && dy <= 4) || (key == LV_KEY_UP && dy >= -4))
+                continue;
+        }
+
+        int primary = horizontal ? abs(dx) : abs(dy);
+        int secondary = horizontal ? abs(dy) : abs(dx);
+        int score = primary * 4 + secondary;
+        if (score < best_score) {
+            best_score = score;
+            best = candidate;
+        }
+    }
+    return best;
+}
+
+static void global_key_cb(lv_event_t *event)
+{
+    uint32_t key = lv_event_get_key(event);
+    tinyos_ctx *ctx = tinyos_ctx_get();
+
+    if (key == LV_KEY_ESC) {
+        tinyos_shell_back(ctx);
+        lv_event_stop_processing(event);
+    } else if (key == LV_KEY_HOME) {
+        tinyos_shell_show(ctx, "home");
+        lv_event_stop_processing(event);
+    } else if (key == LV_KEY_UP || key == LV_KEY_DOWN ||
+               key == LV_KEY_LEFT || key == LV_KEY_RIGHT) {
+        if (!ctx->group || lv_group_get_editing(ctx->group))
+            return;
+        lv_obj_t *next = spatial_focus(ctx->group, key);
+        if (next) {
+            lv_group_focus_obj(next);
+            lv_event_stop_processing(event);
+        }
+    }
+}
+
 void tinyos_focus(lv_obj_t *obj)
 {
     lv_obj_set_clickable(obj, true);
     lv_obj_add_style(obj, &tinyos_theme.focus, LV_STATE_FOCUSED);
+    lv_obj_add_event_cb(obj, global_key_cb, LV_EVENT_KEY, NULL);
 }
 
 void tinyos_add_click(lv_obj_t *obj, lv_event_cb_t callback, void *data)

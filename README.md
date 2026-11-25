@@ -16,15 +16,23 @@ application stack.
 | **Music** | **System** | **About** |
 | ![Music](docs/ui-music.png) | ![System](docs/ui-system.png) | ![About](docs/ui-about.png) |
 
+| Personalisation | | | |
+|:---:|:---:|:---:|:---:|
+| ![Appearance](docs/ui-appearance.png) | ![Themes](docs/ui-themes.png) | ![Wallpapers](docs/ui-wallpapers.png) | ![Typeface](docs/ui-typeface.png) |
+| **Appearance** | **25 themes** | **10 wallpapers** | **6 typefaces** |
+
 ## What it is
 
-- A custom **LVGL 9.6** shell with a dark, high-contrast visual language,
-  animated screen transitions and a focus ring designed for physical buttons.
+- A custom **LVGL 9.6** shell with **25 runtime palettes**, **10 animated
+  wallpapers**, **6 typefaces at 8–28 px**, animated screen transitions and a
+  focus ring designed for physical buttons. Every palette is contrast-checked;
+  no text is smaller than 8 px and no layout relies on scaling.
 - A **Linux 6.12 LTS** firmware built with **Buildroot 2025.02.3**, **musl** and
   **BusyBox**; the kernel boots from a plain ext4 root filesystem.
 - A modern **U-Boot 2025.10** boot chain with a reproducible SD-card image.
-- Six independent modules — Home, Library, Settings, Music, System and About —
-  sharing a focus model, theme and widget toolkit.
+- Ten independent modules — Home, Library, Settings, Music, System, About,
+  Appearance, Themes, Wallpapers and Typeface — sharing one focus model, a
+  runtime palette engine and a compact widget toolkit.
 - Native fbdev output through the mainline **panel-mipi-dbi-spi** driver, evdev
   input through the pcal6416 expander, AXP209 battery telemetry and an
   ALSA-based WAV player.
@@ -52,7 +60,11 @@ The host simulator builds the complete UI without a device and writes real
 make sim
 ./build/tinyos-sim --screen home --out build/home.png
 ./build/tinyos-sim --screen settings --out build/settings.png
+./build/tinyos-sim --screen appearance --theme 14 --font 2 --out build/paper-plex.png
 ```
+
+`--theme` accepts `0…24`, `--font` accepts `0…5` and `--wallpaper` accepts
+`0…9`. The numbered order is also the order shown in the on-device pickers.
 
 Render every screen into `docs/`:
 
@@ -108,10 +120,10 @@ A rescue shell is available on the USB serial console at **115200 8N1**
 
 | Button | Action |
 |---|---|
-| D-pad | Move focus |
+| D-pad | Move focus spatially |
 | A | Open / activate |
 | B | Back |
-| X / Y or L / R | Previous / next track in Music |
+| X / Y or L / R | Previous/next track, preview theme, adjust wallpaper or slider |
 | Start | Home |
 | Select | Back |
 | Power | Short press: back; long press: AXP209 shutdown |
@@ -125,8 +137,10 @@ adjusted without touching the UI.
 src/
   app.c, main.c        application lifecycle and main loop
   core/                settings, logging, file helpers, audio API
-  ui/                  custom theme, widgets, shell and navigation
-  modules/             home, apps, settings, music, system, about
+  ui/                  palette engine, widgets, shell, fonts and wallpapers
+  ui/fonts/            generated static LVGL bitmaps (five families × eight sizes)
+  modules/             home, apps, settings, music, system, about, appearance,
+                       themes, wallpapers, typeface
   platform/host/       simulator display, input, power and audio shims
   platform/linux/      fbdev, evdev, AXP209/sysfs and ALSA backends
 sim/                   host renderer and PNG writer
@@ -141,7 +155,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layer model and
 
 ## Status
 
-- **Simulator:** builds and renders all six screens.
+- **Simulator:** builds and renders all ten screens; `make shots` also captures
+  the Appearance, Theme, Wallpaper and Typeface screens.
 - **ARM compile check:** all shared sources plus fbdev/evdev/AXP209/ALSA
   backends compile for `arm-linux-musleabihf` with Zig and the ALSA headers.
 - **Full image:** built by the GitHub Actions workflow from the Buildroot

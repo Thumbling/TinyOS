@@ -19,6 +19,10 @@ typedef struct {
     bool clock_24h;
     int performance;
     bool reduce_motion;
+    int theme;
+    int wallpaper;
+    int wallpaper_speed;
+    int font_family;
 } tinyos_settings;
 
 void tinyos_settings_defaults(tinyos_settings *settings);

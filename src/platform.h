@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* Semantic shoulder/face keys, outside LVGL's keypad navigation range. */
+#define TINYOS_KEY_PREV 0xE000u
+#define TINYOS_KEY_NEXT 0xE001u
+
 typedef struct {
     int percent;
     bool charging;

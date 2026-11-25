@@ -17,6 +17,10 @@ extern const tinyos_module tinyos_module_music;
 extern const tinyos_module tinyos_module_settings;
 extern const tinyos_module tinyos_module_system;
 extern const tinyos_module tinyos_module_about;
+extern const tinyos_module tinyos_module_appearance;
+extern const tinyos_module tinyos_module_themes;
+extern const tinyos_module tinyos_module_wallpapers;
+extern const tinyos_module tinyos_module_typeface;
 
 const tinyos_module *tinyos_module_find(const char *id);
 

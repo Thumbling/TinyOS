@@ -2,6 +2,7 @@
 
 #include "core/log.h"
 #include "platform.h"
+#include "ui/fonts.h"
 #include "ui/shell.h"
 #include "ui/theme.h"
 
@@ -33,16 +34,18 @@ int tinyos_app_init(void)
     }
 
     application.input = tinyos_input_create();
-    tinyos_theme_init();
+
+    tinyos_settings_defaults(&application.settings);
+    tinyos_settings_load(&application.settings, TINYOS_SETTINGS_PATH);
+
+    tinyos_fonts_select(application.settings.font_family);
+    tinyos_theme_apply(application.settings.theme);
 
     lv_theme_t *theme = lv_theme_default_init(application.display,
                                               lv_color_hex(TINYOS_COLOR_CYAN),
                                               lv_color_hex(TINYOS_COLOR_VIOLET), true,
-                                              &lv_font_montserrat_14);
+                                              tinyos_font_ui(14));
     lv_display_set_theme(application.display, theme);
-
-    tinyos_settings_defaults(&application.settings);
-    tinyos_settings_load(&application.settings, TINYOS_SETTINGS_PATH);
 
     application.audio = tinyos_audio_create();
     if (application.audio) {

@@ -22,7 +22,7 @@ BusyBox init
 /usr/bin/tinyos
     │ LVGL shell
     ▼
-Home / Library / Settings / Music / System / About
+Home / Library / Settings / Music / System / About / Appearance / Themes / Wallpapers / Typeface
 ```
 
 The panel init firmware is embedded in the kernel image so the display can be
@@ -34,7 +34,8 @@ probed before the root filesystem is mounted.
 ┌────────────────────────────────────────────┐
 │ modules/   Home Apps Settings Music …      │  screens and interactions
 ├────────────────────────────────────────────┤
-│ ui/        shell, theme, widgets           │  navigation, focus, visuals
+│   ui/        shell, theme, widgets, fonts,    │  navigation, focus, visuals,
+             wallpaper                      │  animated background
 ├────────────────────────────────────────────┤
 │ app/       lifecycle, settings, audio      │  shared application state
 ├────────────────────────────────────────────┤
@@ -70,18 +71,23 @@ the only worker thread; it never touches LVGL objects.
 
 The shell owns:
 
-- a 240 × 240 screen with a background gradient and two radial glows;
-- a 26 px status line (time, wordmark, battery);
+- a 240 × 240 screen with a clipped animated wallpaper layer;
+- a 26 px status line (time, wordmark, battery icon and percentage);
 - a 174 px content viewport at y = 30;
 - a floating 28 px navigation pill at y = 207.
+
+The wallpaper layer is created behind the other shell layers. Theme changes
+rebuild the shell; wallpaper style and speed changes replace only the wallpaper
+layer through `tinyos_shell_set_wallpaper()`.
 
 Each module receives the content object and builds its own widgets. The shell
 creates a fresh `lv_group` per screen, adds the three nav buttons, then adds
 module focusables through `tinyos_shell_add_focus()`. The first registered
 focusable receives focus, so the module author controls the initial selection.
 
-`LV_KEY_ESC` calls `tinyos_shell_back()`. Detail screens set `return_to` to the
-tab they came from; pressing Home always returns to the Home tab.
+`LV_KEY_ESC` calls `tinyos_shell_back()`. Detail screens are tracked in a small
+back stack, so Settings → Appearance → Themes unwinds one level at a time.
+Pressing Home always clears the stack and returns to the Home tab.
 
 ## Module model
 
@@ -128,13 +134,18 @@ drains all pending events and keeps the last mapped key. It maps:
 D-pad          → LV_KEY_UP/DOWN/LEFT/RIGHT
 A (BTN_EAST)   → LV_KEY_ENTER
 B (BTN_SOUTH)  → LV_KEY_ESC
-X / Y, L / R   → LV_KEY_PREV / LV_KEY_NEXT
+X / Y, L / R   → TINYOS_KEY_PREV / TINYOS_KEY_NEXT
 Start          → LV_KEY_HOME
 Select / Power → LV_KEY_ESC
 ```
 
-No key repeat is synthesized; focus animations and click events are handled by
-LVGL. This keeps the input path small and predictable on a 1 GHz core.
+LVGL's keypad group only moves focus on `LV_KEY_NEXT/PREV`, so TinyOS handles
+the D-pad arrows itself and moves to the nearest focusable object in that
+direction. The semantic X/Y keys are delivered to the focused widget for value
+changes (theme preview, wallpaper style/speed, sliders, music transport).
+B/Start are handled globally from the focused object, so they work even when a
+row or button consumes key events. No key repeat is synthesized; focus
+animations and click events are handled by LVGL.
 
 ## Power and telemetry
 
@@ -174,6 +185,10 @@ volume=62
 clock_24h=1
 performance=1
 reduce_motion=0
+theme=0
+wallpaper=0
+wallpaper_speed=2
+font_family=0
 ```
 
 Writes are atomic (`.tmp` + fsync + rename), so a power loss cannot leave a

@@ -3,7 +3,8 @@
 ## Done
 
 - Independent TinyOS repository, MIT-licensed original code.
-- Custom LVGL 9.6 theme, shell, widgets and six screens.
+- Custom LVGL 9.6 shell, 25 runtime palettes, 10 animated wallpapers,
+  6 typefaces and ten screens.
 - Host simulator with PNG output for every screen.
 - Linux 6.12 LTS platform backends: fbdev, evdev, AXP209/sysfs, ALSA WAV.
 - Buildroot 2025.02.3 external tree with LVGL and TinyOS packages.
@@ -29,8 +30,8 @@ These are ordered by risk, not by visible feature value.
 - Boot splash using the same orb/wordmark language.
 - USB mass-storage gadget and a small transfer helper.
 - Album art from a sidecar image or WAV metadata.
-- Theme/accent picker.
 - A now-playing overlay shared by all tabs.
+- Additional wallpaper families and per-theme wallpaper pairings.
 - Better empty states and a first-run guide.
 - Optional screensaver/dim timer with AXP209 backlight control.
 

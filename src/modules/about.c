@@ -15,7 +15,7 @@ static lv_obj_t *about_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
     lv_obj_add_style(back, &tinyos_theme.pill, 0);
     lv_obj_set_style_radius(back, 10, 0);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x14232E), 0);
+    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
     tinyos_focus(back);
     tinyos_add_click(back, back_cb, NULL);
     tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
@@ -32,7 +32,7 @@ static lv_obj_t *about_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_set_style_shadow_opa(orb, LV_OPA_30, 0);
     lv_obj_t *inner = tinyos_obj(orb, 5, 5, 42, 42);
     lv_obj_set_style_radius(inner, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(inner, lv_color_hex(0x0A1A22), 0);
+    lv_obj_set_style_bg_color(inner, lv_color_hex(TINYOS_COLOR_BG), 0);
     lv_obj_set_style_bg_opa(inner, LV_OPA_COVER, 0);
     tinyos_label(inner, "T", &lv_font_montserrat_24, TINYOS_COLOR_TEXT, 0, 5, 42, 30);
     lv_obj_set_style_text_align(lv_obj_get_child(inner, 0), LV_TEXT_ALIGN_CENTER, 0);

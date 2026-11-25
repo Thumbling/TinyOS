@@ -13,9 +13,10 @@ LVGL_HOST_DIR := build/lvgl-host
 LVGL_HOST_LIB := $(LVGL_HOST_DIR)/liblvgl.a
 
 SIM_SOURCES := sim/main.c sim/png.c src/app.c \
-	$(wildcard src/core/*.c) $(wildcard src/ui/*.c) \
+	$(wildcard src/core/*.c) $(wildcard src/ui/*.c) $(wildcard src/ui/fonts/*.c) \
 	$(wildcard src/modules/*.c) $(wildcard src/platform/host/*.c)
 SIM_OBJECTS := $(patsubst %.c,build/%.o,$(SIM_SOURCES))
+SIM_DEPS := $(SIM_OBJECTS:.o=.d)
 
 SIM_CFLAGS := $(HOST_CFLAGS) -DTINYOS_SIM \
 	-DTINYOS_SETTINGS_PATH='"build/tinyos-settings.ini"' \
@@ -39,7 +40,7 @@ $(LVGL_HOST_LIB): $(shell find $(LVGL_DIR)/src -name '*.c' 2>/dev/null)
 
 build/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(HOSTCC) $(SIM_CFLAGS) -c $< -o $@
+	$(HOSTCC) $(SIM_CFLAGS) -MMD -MP -c $< -o $@
 
 sim: config/lv_conf.h $(LVGL_HOST_LIB) $(SIM_OBJECTS)
 	@mkdir -p build
@@ -49,10 +50,13 @@ sim: config/lv_conf.h $(LVGL_HOST_LIB) $(SIM_OBJECTS)
 
 shots: sim
 	@mkdir -p docs
-	@for screen in home apps settings music system about; do \
+	@rm -f build/tinyos-settings.ini
+	@for screen in home apps settings music system about appearance themes wallpapers typeface; do \
 		./build/tinyos-sim --screen $$screen --out docs/ui-$$screen.png || exit 1; \
 	done
 	@echo "screenshots written to docs/"
 
 clean:
 	rm -rf build
+
+-include $(SIM_DEPS)

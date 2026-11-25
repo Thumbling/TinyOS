@@ -32,7 +32,7 @@ static lv_obj_t *quick_tile(tinyos_ctx *ctx, lv_obj_t *parent, int x, const char
 {
     lv_obj_t *tile = tinyos_obj(parent, x, 120, 64, 50);
     lv_obj_add_style(tile, &tinyos_theme.tile, 0);
-    tinyos_gradient(tile, 0x14222D, 0x0D161E);
+    tinyos_gradient(tile, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
     tinyos_focus(tile);
     tinyos_add_click(tile, open_cb, (void *)id);
     tinyos_shell_add_focus(ctx, tile);
@@ -47,8 +47,8 @@ static lv_obj_t *quick_tile(tinyos_ctx *ctx, lv_obj_t *parent, int x, const char
 static lv_obj_t *home_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
     lv_obj_t *hero = tinyos_card(parent, 14, 0, 212, 94);
-    tinyos_gradient(hero, 0x0E2B39, 0x0A141C);
-    lv_obj_set_style_border_color(hero, lv_color_hex(0x1C3B4A), 0);
+    tinyos_gradient(hero, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
+    lv_obj_set_style_border_color(hero, lv_color_hex(TINYOS_COLOR_LINE), 0);
     lv_obj_set_style_border_opa(hero, LV_OPA_COVER, 0);
 
     lv_obj_t *eyebrow = tinyos_label(hero, greeting(), &lv_font_montserrat_8,
@@ -72,7 +72,7 @@ static lv_obj_t *home_create(tinyos_ctx *ctx, lv_obj_t *parent)
     tinyos_add_click(cta, open_cb, (void *)"apps");
     tinyos_shell_add_focus(ctx, cta);
     lv_obj_t *cta_text = tinyos_label(cta, "OPEN LIBRARY", &lv_font_montserrat_8,
-                                      0x041014, 0, 4, 88, 10);
+                                      TINYOS_COLOR_ON_ACCENT, 0, 4, 88, 10);
     lv_obj_set_style_text_align(cta_text, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *orb = tinyos_obj(hero, 152, 14, 54, 54);
@@ -83,7 +83,7 @@ static lv_obj_t *home_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_set_style_shadow_opa(orb, LV_OPA_30, 0);
     lv_obj_t *orb_inner = tinyos_obj(orb, 5, 5, 44, 44);
     lv_obj_set_style_radius(orb_inner, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(orb_inner, lv_color_hex(0x0A1A22), 0);
+    lv_obj_set_style_bg_color(orb_inner, lv_color_hex(TINYOS_COLOR_BG), 0);
     lv_obj_set_style_bg_opa(orb_inner, LV_OPA_COVER, 0);
     tinyos_label(orb_inner, "T", &lv_font_montserrat_24, TINYOS_COLOR_TEXT, 0, 5, 44, 30);
     lv_obj_t *orb_letter = lv_obj_get_child(orb_inner, 0);

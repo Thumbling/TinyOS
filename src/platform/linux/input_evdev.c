@@ -43,13 +43,13 @@ static uint32_t translate_key(uint16_t code)
     case BTN_SOUTH: /* B */
         return LV_KEY_ESC;
     case BTN_NORTH: /* X */
-        return LV_KEY_PREV;
+        return TINYOS_KEY_PREV;
     case BTN_WEST: /* Y */
-        return LV_KEY_NEXT;
+        return TINYOS_KEY_NEXT;
     case BTN_TL:
-        return LV_KEY_PREV;
+        return TINYOS_KEY_PREV;
     case BTN_TR:
-        return LV_KEY_NEXT;
+        return TINYOS_KEY_NEXT;
     case BTN_START:
         return LV_KEY_HOME;
     case BTN_SELECT:

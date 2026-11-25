@@ -16,7 +16,7 @@ static void app_tile(tinyos_ctx *ctx, lv_obj_t *parent, int x, int y, const char
 {
     lv_obj_t *tile = tinyos_obj(parent, x, y, 102, 56);
     lv_obj_add_style(tile, &tinyos_theme.tile, 0);
-    tinyos_gradient(tile, 0x14222D, 0x0E1821);
+    tinyos_gradient(tile, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
     tinyos_focus(tile);
     tinyos_add_click(tile, open_cb, (void *)id);
     tinyos_shell_add_focus(ctx, tile);
