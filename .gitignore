@@ -1,0 +1,19 @@
+# simulator and local firmware builds
+build/
+output/
+dl/
+src/tinyos
+
+# object files and vendored source archives
+*.o
+*.d
+*.a
+third_party/*.tar.gz
+
+# generated host settings
+build/tinyos-settings.ini
+
+# editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp

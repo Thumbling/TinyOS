@@ -1,1 +1,168 @@
 # TinyOS
+
+**A tiny system with room to grow.**
+
+TinyOS is an independent, modular firmware for the **Anbernic RG Nano**. It is
+built from a small set of modern, upstream components and a custom LVGL user
+interface designed specifically for the 240 × 240 panel and the ten hardware
+buttons. There is no vendor Android layer, no legacy frontend and no inherited
+application stack.
+
+[![Build](https://github.com/Thumbling/TinyOS/actions/workflows/build.yml/badge.svg)](https://github.com/Thumbling/TinyOS/actions/workflows/build.yml)
+
+| Home | Library | Settings |
+|:---:|:---:|:---:|
+| ![Home](docs/ui-home.png) | ![Library](docs/ui-apps.png) | ![Settings](docs/ui-settings.png) |
+| **Music** | **System** | **About** |
+| ![Music](docs/ui-music.png) | ![System](docs/ui-system.png) | ![About](docs/ui-about.png) |
+
+## What it is
+
+- A custom **LVGL 9.6** shell with a dark, high-contrast visual language,
+  animated screen transitions and a focus ring designed for physical buttons.
+- A **Linux 6.12 LTS** firmware built with **Buildroot 2025.02.3**, **musl** and
+  **BusyBox**; the kernel boots from a plain ext4 root filesystem.
+- A modern **U-Boot 2025.10** boot chain with a reproducible SD-card image.
+- Six independent modules — Home, Library, Settings, Music, System and About —
+  sharing a focus model, theme and widget toolkit.
+- Native fbdev output through the mainline **panel-mipi-dbi-spi** driver, evdev
+  input through the pcal6416 expander, AXP209 battery telemetry and an
+  ALSA-based WAV player.
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| SoC | Allwinner V3s, Cortex-A7, 64 MB DDR2 |
+| Bootloader | U-Boot 2025.10 with upstream RG Nano device tree |
+| Kernel | Linux 6.12.115 LTS, `sunxi_defconfig` + TinyOS fragment |
+| Userland | Buildroot 2025.02.3, musl, BusyBox |
+| UI | LVGL 9.6, custom theme and widgets |
+| Audio | ALSA, PCM16 WAV playback |
+| Image | MBR SD image: U-Boot, FAT boot, ext4 root, FAT data |
+
+The design rationale and upstream sources are in [docs/RESEARCH.md](docs/RESEARCH.md).
+
+## Quick start (simulator)
+
+The host simulator builds the complete UI without a device and writes real
+240 × 240 PNG frames:
+
+```sh
+make sim
+./build/tinyos-sim --screen home --out build/home.png
+./build/tinyos-sim --screen settings --out build/settings.png
+```
+
+Render every screen into `docs/`:
+
+```sh
+make shots
+```
+
+The simulator uses only the shared application code, LVGL and the host platform
+shim. It is the fastest way to iterate on layout, typography and focus order.
+
+## Build the firmware
+
+The complete image is built on Linux with Buildroot. The repository ships the
+external tree, U-Boot fragment, kernel fragment, panel firmware and image layout:
+
+```sh
+sh scripts/build-image.sh
+```
+
+Result:
+
+```text
+output/images/tinyos-rg-nano.img
+```
+
+The script downloads Buildroot 2025.02.3, verifies its SHA-256, configures the
+`tinyos_rg_nano_defconfig` and builds Linux, U-Boot, the root filesystem and the
+SD image. CI performs the same build and uploads a compressed image plus its
+SHA-256 checksum. More details, host packages and troubleshooting are in
+[docs/BUILD.md](docs/BUILD.md).
+
+## Flash and boot
+
+> **Warning:** write the image to the correct block device. `lsblk` is your
+> friend; an incorrect `of=` destroys data.
+
+```sh
+xz -dk tinyos-rg-nano.img.xz
+sudo dd if=tinyos-rg-nano.img of=/dev/sdX bs=4M conv=fsync status=progress
+sync
+```
+
+Insert the card into the RG Nano and power it on. The boot chain is:
+
+```text
+BootROM → SPL → U-Boot → boot.scr → zImage + DTB → Linux → BusyBox init → tinyos
+```
+
+A rescue shell is available on the USB serial console at **115200 8N1**
+(`ttyS0`). The UI is restarted automatically if it exits.
+
+## Controls
+
+| Button | Action |
+|---|---|
+| D-pad | Move focus |
+| A | Open / activate |
+| B | Back |
+| X / Y or L / R | Previous / next track in Music |
+| Start | Home |
+| Select | Back |
+| Power | Short press: back; long press: AXP209 shutdown |
+
+The mapping is implemented in `src/platform/linux/input_evdev.c` and can be
+adjusted without touching the UI.
+
+## Project layout
+
+```text
+src/
+  app.c, main.c        application lifecycle and main loop
+  core/                settings, logging, file helpers, audio API
+  ui/                  custom theme, widgets, shell and navigation
+  modules/             home, apps, settings, music, system, about
+  platform/host/       simulator display, input, power and audio shims
+  platform/linux/      fbdev, evdev, AXP209/sysfs and ALSA backends
+sim/                   host renderer and PNG writer
+config/lv_conf.h       generated LVGL 9.6 configuration
+buildroot-external/    Buildroot tree, board files, kernel/U-Boot fragments
+tools/                 LVGL build helper and panel-firmware converter
+docs/                  design, hardware, build and UI documentation
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layer model and
+[docs/MODULES.md](docs/MODULES.md) for the module contract.
+
+## Status
+
+- **Simulator:** builds and renders all six screens.
+- **ARM compile check:** all shared sources plus fbdev/evdev/AXP209/ALSA
+  backends compile for `arm-linux-musleabihf` with Zig and the ALSA headers.
+- **Full image:** built by the GitHub Actions workflow from the Buildroot
+  external tree.
+- **Hardware:** not yet validated on a physical RG Nano. Panel init sequence,
+  button mapping, backlight scaling and audio routing are the first things to
+  verify on device. See [docs/HARDWARE.md](docs/HARDWARE.md) for the known
+  unknowns.
+
+## Documentation
+
+- [Research and technology choices](docs/RESEARCH.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Hardware notes](docs/HARDWARE.md)
+- [Building and flashing](docs/BUILD.md)
+- [Module contract](docs/MODULES.md)
+- [UI and design system](docs/UI.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Third-party notices](docs/THIRD_PARTY.md)
+
+## License
+
+TinyOS original code is released under the **MIT License**. Upstream components
+keep their own licenses; see [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).

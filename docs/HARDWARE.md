@@ -1,0 +1,138 @@
+# Hardware notes
+
+The hardware description below is derived from the mainline Linux device tree
+for the Anbernic RG Nano and the upstream board binding. It is a map for
+bring-up, not a claim that every peripheral has been measured on a physical
+unit.
+
+## Summary
+
+| Item | Details |
+|---|---|
+| SoC | Allwinner V3s, single Cortex-A7, NEON, 64 MB DDR2 |
+| Display | 240 × 240 IPS, ST7789V-class controller on SPI0 |
+| PMIC | AXP209 (battery, charger, regulators, power key) |
+| RTC | PCF8563 on I2C |
+| Buttons | pcal6416 I2C GPIO expander + gpio-keys |
+| Audio | V3s codec, speaker amplifier enable PF6 |
+| Storage | microSD, U-Boot SPL at 8 KiB |
+| USB | OTG capable |
+| Debug | UART0 on the USB serial console, 115200 8N1 |
+| Network | none |
+
+## Panel
+
+The mainline DTS uses:
+
+```dts
+compatible = "saef,sftc154b", "panel-mipi-dbi-spi";
+dc-gpios = <&pio 2 0 GPIO_ACTIVE_HIGH>;      /* PC0 */
+reset-gpios = <&pio 1 2 GPIO_ACTIVE_HIGH>;   /* PB2 */
+spi-max-frequency = <100000000>;
+hactive = <240>;
+vactive = <240>;
+hback-porch = <80>;
+```
+
+The controller has a 240 × 320 RAM; the 80-column back porch shifts the visible
+240 × 240 window. `panel-mipi-dbi` loads `saef,sftc154b.bin` from firmware. The
+init blob is embedded in the kernel (`CONFIG_EXTRA_FIRMWARE`) because the panel
+probes before the root filesystem is available.
+
+### Bring-up tuning
+
+These are the first things to check on hardware:
+
+1. **Colour order.** The sequence sets `MADCTL = 0x00`. If red/blue are swapped,
+   use `0x08` (BGR) instead.
+2. **Inversion.** `0x21` enables inversion. Remove it if the image is washed
+   out or negative.
+3. **Orientation.** `MADCTL` bits 5–7 rotate the image. The shell assumes a
+   portrait 240 × 240 screen with no hardware rotation.
+4. **Gamma.** The `0xE0`/`0xE1` tables are the common ST7789V values. If
+   contrast is poor, tune them against a test gradient.
+5. **Backlight.** The DTS uses the PWM backlight with 12 levels. TinyOS writes a
+   percentage into `brightness`; verify the lowest level is still readable.
+
+The text source is `buildroot-external/board/rg-nano/firmware/saef,sftc154b.txt`.
+Regenerate the binary with:
+
+```sh
+python3 tools/mipi_dbi_cmd.py \
+  "buildroot-external/board/rg-nano/firmware/saef,sftc154b.txt" \
+  "buildroot-external/board/rg-nano/firmware/saef,sftc154b.bin"
+```
+
+## Buttons
+
+The pcal6416 exposes the buttons through gpio-keys. The kernel emits standard
+`BTN_*` codes; TinyOS maps them in `src/platform/linux/input_evdev.c`.
+
+| Physical | Linux code | TinyOS action |
+|---|---|---|
+| D-pad up/down/left/right | `BTN_DPAD_*` | focus movement |
+| A | `BTN_EAST` | Enter |
+| B | `BTN_SOUTH` | Back |
+| X | `BTN_NORTH` | Previous |
+| Y | `BTN_WEST` | Next |
+| L / R | `BTN_TL` / `BTN_TR` | Previous / Next |
+| Start | `BTN_START` | Home |
+| Select | `BTN_SELECT` | Back |
+| Power | `KEY_POWER` | Back (short press) |
+
+If a unit reports different codes, change only the `translate_key()` table.
+
+## Power
+
+- AXP209 battery and charger nodes are enabled by the mainline DTS.
+- TinyOS reads `capacity` and `status` from the power-supply class.
+- The status bar shows `⚡` while charging and a battery glyph otherwise.
+- `poweroff` and `reboot` use the kernel reboot syscall; the AXP209 handles the
+  final rail shutdown.
+- A long power-key press is handled by the PMIC/kernel. The app maps a short
+  `KEY_POWER` event to Back.
+
+## Audio
+
+The V3s codec is enabled in the DTS with:
+
+```dts
+allwinner,audio-routing = "Speaker", "HP",
+                          "MIC1", "Mic",
+                          "Mic", "HBIAS";
+allwinner,pa-gpios = <&pio 5 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>; /* PF6 */
+```
+
+The codec driver creates the sound card; no `simple-audio-card` node is needed.
+TinyOS opens ALSA `default` (card 0) and applies volume to playback mixer
+elements. If the speaker is silent:
+
+1. check `aplay -l` and `alsamixer` over serial;
+2. verify PF6 is driven high when playing;
+3. check the codec DAPM route with `amixer -c 0 contents`;
+4. confirm the WAV is PCM16 mono/stereo, not float or ADPCM.
+
+## Storage and boot
+
+The SD image is MBR:
+
+| Area | Offset | Size | Contents |
+|---|---|---|---|
+| SPL/U-Boot | 8 KiB | — | `u-boot-sunxi-with-spl.bin` |
+| boot | 1 MiB | 64 MiB | FAT: `zImage`, DTB, `boot.scr` |
+| root | 65 MiB | 512 MiB | ext4 root filesystem |
+| data | 577 MiB | 256 MiB | FAT data volume, mounted at `/data` |
+
+The data partition is intentionally separate from the root filesystem so music
+and settings survive a firmware update that rewrites the root partition.
+
+## Known unknowns
+
+- Panel init sequence and colour order on the actual `saef,sftc154b` unit.
+- Whether the pcal6416 interrupt line is wired and useful; TinyOS polls evdev.
+- Exact backlight curve and minimum usable brightness.
+- Codec gain and speaker pop behaviour at startup.
+- Thermal behaviour under sustained UI/audio load.
+- USB gadget composition and transfer speed.
+
+These are tracked in [ROADMAP.md](ROADMAP.md).

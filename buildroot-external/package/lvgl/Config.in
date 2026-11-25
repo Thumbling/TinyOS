@@ -1,0 +1,11 @@
+config BR2_PACKAGE_LVGL
+	bool "lvgl"
+	help
+	  Light and Versatile Graphics Library 9.6.
+
+	  TinyOS uses the MIT-licensed LVGL 9.6 renderer with a static
+	  configuration generated from config/lv_conf.h. The library is
+	  built as a static archive and linked directly into the TinyOS
+	  binary; no runtime configuration files are needed.
+
+	  https://lvgl.io/

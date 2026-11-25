@@ -1,0 +1,6 @@
+menu "TinyOS firmware"
+
+source "$BR2_EXTERNAL_TINYOS_PATH/package/lvgl/Config.in"
+source "$BR2_EXTERNAL_TINYOS_PATH/package/tinyos/Config.in"
+
+endmenu

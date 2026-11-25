@@ -1,0 +1,14 @@
+config BR2_PACKAGE_TINYOS
+	bool "tinyos"
+	depends on BR2_PACKAGE_LVGL
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	select BR2_PACKAGE_ALSA_LIB
+	help
+	  TinyOS, the modular firmware for the Anbernic RG Nano.
+
+	  Builds the LVGL user interface, evdev keypad input, fbdev display
+	  output, AXP209 power telemetry and the ALSA WAV player. The
+	  resulting /usr/bin/tinyos is started by the board inittab and
+	  renders directly to /dev/fb0.
+
+	  https://github.com/Thumbling/TinyOS
