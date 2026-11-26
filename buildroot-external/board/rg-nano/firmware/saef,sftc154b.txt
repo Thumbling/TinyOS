@@ -2,14 +2,22 @@
 #
 # The panel is driven through panel-mipi-dbi-spi. The 80-pixel horizontal
 # back porch is described in the mainline device tree; this file only includes
-# the controller bring-up. If a unit shows inverted colours remove 0x21, and
-# if the image is rotated adjust the 0x36 MADCTL value.
+# the controller bring-up.
+#
+# MADCTL matters twice here. panel-mipi-dbi always adds hback-porch (80) to the
+# column address and vback-porch (0) to the row address, whatever MADCTL says.
+# Only MADCTL 0xA0 (MV|MY) makes the controller address 320 columns by 240
+# rows, so the 80-pixel offset lands inside the frame memory; with 0x00 the
+# driver writes to columns 80..319 of a 240-column memory and every row is
+# shifted, which looks like a skewed, flickering picture. 0xA0 is also the
+# orientation that table lists for this offset pair. Do not change it without
+# also changing hback-porch in the device tree.
 command 0x01
 delay 120
 command 0x11
 delay 120
 command 0x3a 0x55
-command 0x36 0x00
+command 0x36 0xa0
 command 0xb2 0x0c 0x0c 0x00 0x33 0x33
 command 0xb7 0x35
 command 0xbb 0x19

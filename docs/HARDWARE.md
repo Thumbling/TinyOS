@@ -43,12 +43,19 @@ probes before the root filesystem is available.
 
 These are the first things to check on hardware:
 
-1. **Colour order.** The sequence sets `MADCTL = 0x00`. If red/blue are swapped,
-   use `0x08` (BGR) instead.
+1. **Colour order.** The sequence sets `MADCTL = 0xA0`. If red/blue are
+   swapped, use `0xA8` (BGR bit) instead.
 2. **Inversion.** `0x21` enables inversion. Remove it if the image is washed
    out or negative.
-3. **Orientation.** `MADCTL` bits 5–7 rotate the image. The shell assumes a
-   portrait 240 × 240 screen with no hardware rotation.
+3. **Orientation and the 80-pixel offset.** `panel-mipi-dbi` has no
+   `rotation` property: it passes `rotation = 0` and copies the framebuffer
+   unchanged, but it always adds `hback-porch` (80) to the column address
+   and `vback-porch` (0) to the row address. The controller only has 320
+   addressable columns when `MADCTL` bit 5 (`MV`) is set, so the init
+   sequence must use `0x36 0xA0`. With `0x00` the driver writes columns
+   80..319 of a 240-column memory, every row shifts and the picture looks
+   skewed and flickers. Change the MADCTL value and the porch values
+   together, never one alone.
 4. **Gamma.** The `0xE0`/`0xE1` tables are the common ST7789V values. If
    contrast is poor, tune them against a test gradient.
 5. **Backlight.** The DTS uses the PWM backlight with 12 levels. TinyOS writes a
