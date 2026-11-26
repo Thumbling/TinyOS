@@ -118,13 +118,34 @@ The SD image is MBR:
 
 | Area | Offset | Size | Contents |
 |---|---|---|---|
-| SPL/U-Boot | 8 KiB | — | `u-boot-sunxi-with-spl.bin` |
+| SPL/U-Boot | 8 KiB | 32 KiB | `u-boot-sunxi-with-spl.bin` (U-Boot proper at 40 KiB) |
 | boot | 1 MiB | 64 MiB | FAT: `zImage`, DTB, `boot.scr` |
 | root | 65 MiB | 512 MiB | ext4 root filesystem |
 | data | 577 MiB | 256 MiB | FAT data volume, mounted at `/data` |
 
 The data partition is intentionally separate from the root filesystem so music
 and settings survive a firmware update that rewrites the root partition.
+
+All load addresses stay inside the 64 MB layout U-Boot itself uses on sunxi
+(`bootm_size` is 46 MB): `zImage` at 0x41000000, DTB at 0x41800000 and
+`boot.scr` at 0x41900000. Do not move them towards the top of RAM: U-Boot
+relocates itself there and the DTB would be overwritten while loading.
+
+## Diagnostics without a serial port
+
+The board has no accessible UART, so the image reports on itself:
+
+| Channel | What it proves |
+|---|---|
+| `UBOOT.TXT` on the data partition | U-Boot ran and can read and write the card |
+| `/data/tinyos-boot.log` | the kernel reached userspace; contains `dmesg`, backlight and framebuffer state |
+| `/data/tinyos.log` | the UI started, or why it exited |
+| Lit panel with kernel messages | DRM panel and backlight probed |
+| USB serial port on the PC | the USB gadget came up; a getty runs on `ttyGS0` |
+
+Pull the card and open the FAT `TINYOS_DATA` volume on any PC to read the logs.
+The kernel also keeps a text console on the panel (`console=tty0`), so a boot
+that stops early is visible on the device itself.
 
 ## Known unknowns
 
