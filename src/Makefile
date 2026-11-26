@@ -26,7 +26,7 @@ SOURCES := \
 	ui/widgets.c \
 	ui/wallpaper.c \
 	ui/shell.c \
-	ui/fonts/*.c \
+	$(wildcard ui/fonts/*.c) \
 	modules/modules.c \
 	modules/home.c \
 	modules/apps.c \
