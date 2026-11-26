@@ -21,12 +21,26 @@ application stack.
 | ![Appearance](docs/ui-appearance.png) | ![Themes](docs/ui-themes.png) | ![Wallpapers](docs/ui-wallpapers.png) | ![Typeface](docs/ui-typeface.png) |
 | **Appearance** | **25 themes** | **10 wallpapers** | **6 typefaces** |
 
+| Text scale 115 % | Text scale 130 % |
+|:---:|:---:|
+| ![Appearance at 115 %](docs/ui-text-115-appearance.png) | ![Appearance at 130 %](docs/ui-text-130-appearance.png) |
+| **Appearance 115 %** | **Appearance 130 %** |
+
+| Empty | Loading | Error |
+|:---:|:---:|:---:|
+| ![Empty music state](docs/ui-state-empty.png) | ![Loading music state](docs/ui-state-loading.png) | ![Error music state](docs/ui-state-error.png) |
+| **Empty** | **Loading** | **Error** |
+
 ## What it is
 
 - A custom **LVGL 9.6** shell with **25 runtime palettes**, **10 animated
-  wallpapers**, **6 typefaces at 8–28 px**, animated screen transitions and a
-  focus ring designed for physical buttons. Every palette is contrast-checked;
-  no text is smaller than 10 px and no layout relies on scaling.
+  wallpapers**, **6 typefaces at 8–28 px**, **three text scales (100/115/130 %)**,
+  animated screen transitions and a focus ring designed for physical buttons.
+  Every palette is contrast-checked and no text is smaller than 10 px. Text
+  scaling recomposes rows and scrolls lists; it never bitmap-scales the UI.
+- **Empty, loading and error states** for music, each with a visible, reachable
+  Retry/Back action, plus a one-shot input policy: held A triggers once, D-pad
+  repeat is cancelable and never queues focus animations.
 - A **Linux 6.12 LTS** firmware built with **Buildroot 2025.02.3**, **musl** and
   **BusyBox**; the kernel boots from a plain ext4 root filesystem.
 - A modern **U-Boot 2025.10** boot chain with a reproducible SD-card image.
@@ -67,6 +81,18 @@ make sim
 `0…9`. The numbered order is also the order shown in the on-device pickers.
 `--frames N` stops after N 16 ms frames (default 90), so a single frame in
 the middle of an entrance, dialog or value animation can be inspected.
+
+Text scale, states and the input policy can be exercised without a device:
+
+```sh
+./build/tinyos-sim --screen settings --text 130 --down 5 --out build/power-off.png
+./build/tinyos-sim --screen music --state loading --text 115 --out build/loading.png
+./build/tinyos-sim --keytest --screen home
+```
+
+`--text` accepts `100`, `115` and `130`; `--state` accepts `empty`, `loading`
+and `error`; `--down N` presses Down through the real host key path, and
+`--keytest` prints the held-A / held-D-pad event counts.
 
 Render every screen into `docs/`:
 
@@ -122,8 +148,8 @@ A rescue shell is available on the USB serial console at **115200 8N1**
 
 | Button | Action |
 |---|---|
-| D-pad | Move focus spatially |
-| A | Open / activate |
+| D-pad | Move focus spatially; repeat after 350 ms, then every 90 ms |
+| A | Open / activate (one-shot, even when held) |
 | B | Back |
 | X / Y or L / R | Previous/next track, preview theme, adjust wallpaper or slider |
 | Start | Home |
@@ -157,8 +183,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layer model and
 
 ## Status
 
-- **Simulator:** builds and renders all ten screens; `make shots` also captures
-  the Appearance, Theme, Wallpaper and Typeface screens.
+- **Simulator:** builds and renders all ten screens at 100/115/130 %; it also
+  captures empty/loading/error states and prints the input-repeat test.
+- **Text scale:** verified at 100/115/130 % with focused, scrolled lists and no
+  clipping on the 240 px canvas; screenshots are in [docs/UI.md](docs/UI.md).
+- **Input:** held A is one-shot and D-pad repeat is cancelable; the simulator
+  test passes. Real button feel and repeat tempo remain hardware checks.
 - **ARM compile check:** all shared sources plus fbdev/evdev/AXP209/ALSA
   backends compile for `arm-linux-musleabihf` with Zig and the ALSA headers.
 - **Full image:** built by the GitHub Actions workflow from the Buildroot

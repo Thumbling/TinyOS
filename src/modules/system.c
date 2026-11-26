@@ -2,6 +2,7 @@
 
 #include "../core/log.h"
 #include "../platform.h"
+#include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../version.h"
 #include "../ui/theme.h"
@@ -32,13 +33,18 @@ static void back_cb(lv_event_t *event)
 static lv_obj_t *stat_card(lv_obj_t *parent, int x, int y, const char *title,
                            lv_obj_t **value, lv_obj_t **sub)
 {
-    lv_obj_t *card = tinyos_card(parent, x, y, 102, 56);
+    bool large = tinyos_large_text();
+    lv_obj_t *card = tinyos_card(parent, x, y, 102, large ? 60 : 56);
     tinyos_gradient(card, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
-    tinyos_label(card, title, &lv_font_montserrat_10, TINYOS_COLOR_DIM, 8, 5, 86, 13);
-    *value = tinyos_label(card, "-", &lv_font_montserrat_16, TINYOS_COLOR_TEXT,
-                          8, 19, 86, 20);
+    tinyos_label(card, title, &lv_font_montserrat_10, TINYOS_COLOR_DIM,
+                 8, 5, 86, 13);
+    *value = tinyos_label(card, "-", large ? &lv_font_montserrat_14 : &lv_font_montserrat_16,
+                          TINYOS_COLOR_TEXT, large ? 4 : 8, large ? 22 : 19,
+                          large ? 96 : 86, large ? 24 : 20);
     *sub = tinyos_label(card, "", &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
                         8, 40, 86, 12);
+    if (large)
+        lv_obj_set_hidden(*sub, true);
     return card;
 }
 
@@ -58,7 +64,10 @@ static void system_refresh(system_view *view)
 
     int used_mb = (stats.mem_total_kb - stats.mem_available_kb) / 1024;
     int total_mb = stats.mem_total_kb / 1024;
-    snprintf(buffer, sizeof(buffer), "%d / %d MB", used_mb, total_mb);
+    if (tinyos_large_text())
+        snprintf(buffer, sizeof(buffer), "%d/%d MB", used_mb, total_mb);
+    else
+        snprintf(buffer, sizeof(buffer), "%d / %d MB", used_mb, total_mb);
     lv_label_set_text(view->mem_value, buffer);
     snprintf(buffer, sizeof(buffer), "%d MB available", stats.mem_available_kb / 1024);
     lv_label_set_text(view->mem_sub, buffer);
@@ -111,15 +120,19 @@ static lv_obj_t *system_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_t *back_icon = lv_obj_get_child(back, 0);
     lv_obj_center(back_icon);
 
+    bool large = tinyos_large_text();
     tinyos_label(parent, "System", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
                  44, 2, 150, 24);
-    tinyos_label(parent, "Live hardware.", &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
-                 44, 25, 180, 12);
+    if (!large)
+        tinyos_label(parent, "Live hardware.", &lv_font_montserrat_10,
+                     TINYOS_COLOR_MUTED, 44, 25, 180, 12);
 
-    stat_card(parent, 14, 44, "CPU", &view->cpu_value, &view->cpu_sub);
-    stat_card(parent, 124, 44, "MEMORY", &view->mem_value, &view->mem_sub);
-    stat_card(parent, 14, 108, "BATTERY", &view->battery_value, &view->battery_sub);
-    stat_card(parent, 124, 108, "UPTIME", &view->uptime_value, &view->uptime_sub);
+    int top = large ? 40 : 44;
+    int bottom = large ? 108 : 108;
+    stat_card(parent, 14, top, "CPU", &view->cpu_value, &view->cpu_sub);
+    stat_card(parent, 124, top, "MEMORY", &view->mem_value, &view->mem_sub);
+    stat_card(parent, 14, bottom, "BATTERY", &view->battery_value, &view->battery_sub);
+    stat_card(parent, 124, bottom, "UPTIME", &view->uptime_value, &view->uptime_sub);
 
     tinyos_shell_add_focus(ctx, back);
     view->timer = lv_timer_create(system_timer_cb, 1000, view);

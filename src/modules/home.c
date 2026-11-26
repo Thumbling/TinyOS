@@ -1,5 +1,6 @@
 #include "module.h"
 
+#include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../ui/theme.h"
 #include "../ui/widgets.h"
@@ -46,7 +47,7 @@ static const char *today(void)
 static lv_obj_t *quick_tile(tinyos_ctx *ctx, lv_obj_t *parent, int x, const char *id,
                             const char *symbol, uint32_t accent, const char *label)
 {
-    lv_obj_t *tile = tinyos_obj(parent, x, 120, 64, 44);
+    lv_obj_t *tile = tinyos_obj(parent, x, tinyos_large_text() ? 124 : 120, 64, 44);
     lv_obj_add_style(tile, &tinyos_theme.tile, 0);
     tinyos_gradient(tile, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
     tinyos_focus(tile);
@@ -62,35 +63,39 @@ static lv_obj_t *quick_tile(tinyos_ctx *ctx, lv_obj_t *parent, int x, const char
 
 static lv_obj_t *home_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
-    lv_obj_t *hero = tinyos_card(parent, 14, 0, 212, 88);
+    bool large = tinyos_large_text();
+    lv_obj_t *hero = tinyos_card(parent, 14, 0, 212, large ? 96 : 88);
     tinyos_gradient(hero, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
     lv_obj_set_style_border_color(hero, lv_color_hex(TINYOS_COLOR_LINE), 0);
     lv_obj_set_style_border_opa(hero, LV_OPA_COVER, 0);
 
     lv_obj_t *date = tinyos_label(hero, today(), &lv_font_montserrat_10,
-                                  TINYOS_COLOR_CYAN, 16, 12, 140, 14);
+                                  TINYOS_COLOR_CYAN, 16, large ? 8 : 12, 140, 14);
     lv_obj_set_style_text_letter_space(date, 1, 0);
 
-    lv_obj_t *orb = tinyos_obj(hero, 168, 10, 28, 28);
-    lv_obj_set_style_radius(orb, LV_RADIUS_CIRCLE, 0);
-    tinyos_gradient(orb, TINYOS_COLOR_CYAN, TINYOS_COLOR_VIOLET);
-    lv_obj_t *orb_inner = tinyos_obj(orb, 3, 3, 22, 22);
-    lv_obj_set_style_radius(orb_inner, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(orb_inner, lv_color_hex(TINYOS_COLOR_BG), 0);
-    lv_obj_set_style_bg_opa(orb_inner, LV_OPA_COVER, 0);
-    lv_obj_t *letter = tinyos_label(orb_inner, "T", &lv_font_montserrat_14,
-                                    TINYOS_COLOR_TEXT, 0, 2, 22, 18);
-    lv_obj_set_style_text_align(letter, LV_TEXT_ALIGN_CENTER, 0);
+    if (!large) {
+        lv_obj_t *orb = tinyos_obj(hero, 168, 10, 28, 28);
+        lv_obj_set_style_radius(orb, LV_RADIUS_CIRCLE, 0);
+        tinyos_gradient(orb, TINYOS_COLOR_CYAN, TINYOS_COLOR_VIOLET);
+        lv_obj_t *orb_inner = tinyos_obj(orb, 3, 3, 22, 22);
+        lv_obj_set_style_radius(orb_inner, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(orb_inner, lv_color_hex(TINYOS_COLOR_BG), 0);
+        lv_obj_set_style_bg_opa(orb_inner, LV_OPA_COVER, 0);
+        lv_obj_t *letter = tinyos_label(orb_inner, "T", &lv_font_montserrat_14,
+                                        TINYOS_COLOR_TEXT, 0, 2, 22, 18);
+        lv_obj_set_style_text_align(letter, LV_TEXT_ALIGN_CENTER, 0);
+    }
 
     tinyos_label(hero, greeting(), &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 16, 30, 180, 26);
+                 16, large ? 28 : 30, large ? 196 : 180, large ? 32 : 26);
     lv_obj_t *subtitle = tinyos_label(hero, TINYOS_TAGLINE, &lv_font_montserrat_10,
-                                      TINYOS_COLOR_MUTED, 16, 60, 188, 26);
+                                      TINYOS_COLOR_MUTED, 16, 60,
+                                      large ? 180 : 188, large ? 34 : 26);
     lv_label_set_long_mode(subtitle, LV_LABEL_LONG_MODE_WRAP);
     lv_obj_set_style_text_line_space(subtitle, 0, 0);
 
     lv_obj_t *quick = tinyos_label(parent, "QUICK ACCESS", &lv_font_montserrat_10,
-                                   TINYOS_COLOR_MUTED, 15, 98, 200, 12);
+                                   TINYOS_COLOR_MUTED, 15, large ? 100 : 98, 200, 12);
     lv_obj_set_style_text_letter_space(quick, 1, 0);
 
     /* Only what the tab bar cannot reach: Music, System and About. */

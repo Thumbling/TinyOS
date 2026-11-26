@@ -1,18 +1,16 @@
 #include "../../platform.h"
+#include "../../core/key_repeat.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
-static uint32_t pending_key;
-static bool key_pending;
-
 static void read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     (void)indev;
-    if (key_pending) {
-        data->key = pending_key;
+    uint32_t key = tinyos_key_repeat_poll(lv_tick_get());
+    if (key != 0) {
+        data->key = key;
         data->state = LV_INDEV_STATE_PRESSED;
-        key_pending = false;
     } else {
         data->key = 0;
         data->state = LV_INDEV_STATE_RELEASED;
@@ -21,6 +19,7 @@ static void read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 
 lv_indev_t *tinyos_input_create(void)
 {
+    tinyos_key_repeat_reset();
     lv_indev_t *indev = lv_indev_create();
     if (!indev)
         return NULL;
@@ -31,6 +30,16 @@ lv_indev_t *tinyos_input_create(void)
 
 void tinyos_host_input_key(uint32_t key)
 {
-    pending_key = key;
-    key_pending = true;
+    tinyos_host_input_down(key);
+    tinyos_host_input_up(key);
+}
+
+void tinyos_host_input_down(uint32_t key)
+{
+    tinyos_key_repeat_down(key, lv_tick_get());
+}
+
+void tinyos_host_input_up(uint32_t key)
+{
+    tinyos_key_repeat_up(key, lv_tick_get());
 }

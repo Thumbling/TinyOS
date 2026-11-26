@@ -44,6 +44,8 @@ void tinyos_stats_read(tinyos_stats *stats);
 #ifdef TINYOS_SIM
 const uint16_t *tinyos_host_framebuffer(void);
 void tinyos_host_input_key(uint32_t key);
+void tinyos_host_input_down(uint32_t key);
+void tinyos_host_input_up(uint32_t key);
 void tinyos_host_tick_advance(uint32_t milliseconds);
 #endif
 

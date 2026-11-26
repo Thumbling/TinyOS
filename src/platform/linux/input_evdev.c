@@ -7,6 +7,7 @@
  * LVGL's focus animations; the device has no analog controls.
  */
 #include "../../platform.h"
+#include "../../core/key_repeat.h"
 #include "../../core/log.h"
 
 #include <fcntl.h>
@@ -23,7 +24,6 @@
 typedef struct {
     int fds[MAX_INPUTS];
     int fd_count;
-    uint32_t pending_key;
     lv_indev_t *indev;
 } evdev_input;
 
@@ -65,22 +65,31 @@ static void read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     evdev_input *input = lv_indev_get_user_data(indev);
     struct input_event event;
+    uint32_t now = lv_tick_get();
 
     for (int i = 0; i < input->fd_count; i++) {
         while (read(input->fds[i], &event, sizeof(event)) == (ssize_t)sizeof(event)) {
-            if (event.type != EV_KEY || event.value != 1)
+            if (event.type != EV_KEY)
                 continue;
             uint32_t key = translate_key(event.code);
-            if (key != 0)
-                input->pending_key = key;
+            if (key == 0)
+                continue;
+            /* value 1 = physical press, 0 = physical release, 2 = kernel
+             * repeat. The kernel rate is not ours to control; treat the
+             * press as a hold and let key_repeat own the cadence. */
+            if (event.value == 1)
+                tinyos_key_repeat_down(key, now);
+            else if (event.value == 0)
+                tinyos_key_repeat_up(key, now);
         }
     }
 
-    if (input->pending_key != 0) {
-        data->key = input->pending_key;
+    uint32_t key = tinyos_key_repeat_poll(now);
+    if (key != 0) {
+        data->key = key;
         data->state = LV_INDEV_STATE_PRESSED;
-        input->pending_key = 0;
     } else {
+        data->key = 0;
         data->state = LV_INDEV_STATE_RELEASED;
     }
 }
@@ -91,6 +100,7 @@ lv_indev_t *tinyos_input_create(void)
     if (!input)
         return NULL;
     input->fd_count = 0;
+    tinyos_key_repeat_reset();
 
     for (int index = 0; index < MAX_EVENT_NODES && input->fd_count < MAX_INPUTS; index++) {
         char path[64];

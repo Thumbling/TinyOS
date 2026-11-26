@@ -1,6 +1,9 @@
 #include "module.h"
 
+#include "music.h"
+
 #include "../platform.h"
+#include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../ui/theme.h"
 #include "../ui/widgets.h"
@@ -20,6 +23,15 @@ typedef struct {
     lv_obj_t *play_icon;
     lv_timer_t *timer;
 } music_view;
+
+static int forced_state = TINYOS_MUSIC_AUTO;
+static bool rescan_pending;
+static lv_timer_t *scan_timer;
+
+void tinyos_music_force_state(int state)
+{
+    forced_state = state;
+}
 
 static void format_time(char *buffer, size_t size, int milliseconds)
 {
@@ -111,11 +123,30 @@ static void back_cb(lv_event_t *event)
     tinyos_shell_back(tinyos_ctx_get());
 }
 
+static void scan_finished_cb(lv_timer_t *timer)
+{
+    tinyos_ctx *ctx = lv_timer_get_user_data(timer);
+    tinyos_audio_scan(ctx->audio);
+    rescan_pending = false;
+    scan_timer = NULL;
+    tinyos_shell_show(ctx, "music");
+}
+
 static void rescan_cb(lv_event_t *event)
 {
+    (void)event;
     tinyos_ctx *ctx = tinyos_ctx_get();
-    tinyos_audio_scan(ctx->audio);
-    tinyos_shell_show(ctx, "music");
+    /* A failed audio init is recoverable: RETRY creates the backend again. */
+    if (!ctx->audio)
+        ctx->audio = tinyos_audio_create();
+    /* Show the loading state before the (synchronous) scan. The one-shot
+     * timer gives the frame a chance to present it, then rebuilds the view. */
+    if (ctx->audio && !scan_timer) {
+        rescan_pending = true;
+        tinyos_shell_show(ctx, "music");
+        scan_timer = lv_timer_create(scan_finished_cb, 320, ctx);
+        lv_timer_set_repeat_count(scan_timer, 1);
+    }
 }
 
 static void music_delete_cb(lv_event_t *event)
@@ -143,110 +174,204 @@ static lv_obj_t *icon_button(lv_obj_t *parent, int x, int y, int size, int glyph
     return button;
 }
 
+static lv_obj_t *state_button(lv_obj_t *parent, int x, int y, int width,
+                              const char *text, lv_event_cb_t callback, void *data)
+{
+    bool large = tinyos_large_text();
+    int height = large ? 24 : 22;
+    lv_obj_t *button = tinyos_obj(parent, x, y, width, height);
+    lv_obj_add_style(button, &tinyos_theme.pill, 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
+    tinyos_focus(button);
+    tinyos_add_click(button, callback, data);
+    lv_obj_t *label = tinyos_label(button, text, &lv_font_montserrat_10,
+                                   TINYOS_COLOR_CYAN, 0, large ? 4 : 6, width,
+                                   large ? 15 : 10);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    return button;
+}
+
+static lv_obj_t *state_card(tinyos_ctx *ctx, lv_obj_t *parent, const char *title,
+                            const char *subtitle, const char *symbol,
+                            uint32_t accent)
+{
+    (void)ctx;
+    bool large = tinyos_large_text();
+    lv_obj_t *card = tinyos_card(parent, 14, large ? 40 : 44, 212, 96);
+    tinyos_gradient(card, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
+    tinyos_icon(card, symbol, accent, 88, 12, 36);
+
+    lv_obj_t *heading = tinyos_label(card, title, &lv_font_montserrat_14,
+                                     TINYOS_COLOR_TEXT, 6, 52, 200, 22);
+    lv_obj_set_style_text_align(heading, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_t *copy = tinyos_label(card, subtitle, &lv_font_montserrat_10,
+                                  TINYOS_COLOR_MUTED, 6, 78, 200, 16);
+    lv_obj_set_style_text_align(copy, LV_TEXT_ALIGN_CENTER, 0);
+    return card;
+}
+
+static lv_obj_t *build_view(tinyos_ctx *ctx, lv_obj_t *parent, music_view *view);
+
 static lv_obj_t *music_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
     music_view *view = calloc(1, sizeof(*view));
     if (!view)
         return parent;
     view->ctx = ctx;
+    bool large = tinyos_large_text();
 
-    lv_obj_t *back = icon_button(parent, 10, 2, 26, 16, LV_SYMBOL_LEFT,
-                                 TINYOS_COLOR_SURFACE_2,
-                                 TINYOS_COLOR_MUTED, back_cb, view);
+    lv_obj_t *back = icon_button(parent, 10, 2, 26, large ? 18 : 16, LV_SYMBOL_LEFT,
+                                 TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_MUTED,
+                                 back_cb, view);
     tinyos_label(parent, "Music", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 44, 2, 140, 24);
-    int count = tinyos_audio_count(ctx->audio);
-    char subtitle[32];
-    snprintf(subtitle, sizeof(subtitle), "%d track%s", count, count == 1 ? "" : "s");
-    view->format = tinyos_label(parent, subtitle, &lv_font_montserrat_10,
-                                TINYOS_COLOR_DIM, 168, 8, 58, 13);
-    lv_obj_set_style_text_align(view->format, LV_TEXT_ALIGN_RIGHT, 0);
+                 44, 2, 120, 24);
+    int count = ctx->audio ? tinyos_audio_count(ctx->audio) : 0;
+    char counter[32];
+    snprintf(counter, sizeof(counter), "%d track%s", count, count == 1 ? "" : "s");
+    lv_obj_t *count_label = tinyos_label(parent, counter, &lv_font_montserrat_10,
+                                         TINYOS_COLOR_DIM, 168, 8, 58, 13);
+    lv_obj_set_style_text_align(count_label, LV_TEXT_ALIGN_RIGHT, 0);
 
-    if (count == 0) {
-        lv_obj_t *empty = tinyos_card(parent, 14, 44, 212, 96);
-        tinyos_gradient(empty, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
-        tinyos_icon(empty, LV_SYMBOL_AUDIO, TINYOS_COLOR_CYAN, 86, 12, 40);
-        lv_obj_t *empty_title = tinyos_label(empty, "No tracks yet",
-                                             &lv_font_montserrat_14, TINYOS_COLOR_TEXT,
-                                             0, 54, 212, 20);
-        lv_obj_set_style_text_align(empty_title, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_t *empty_sub = tinyos_label(empty, "Copy WAV files to /data/music",
-                                           &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
-                                           0, 76, 212, 13);
-        lv_obj_set_style_text_align(empty_sub, LV_TEXT_ALIGN_CENTER, 0);
+    int state = forced_state;
+    if (state == TINYOS_MUSIC_AUTO) {
+        if (!ctx->audio)
+            state = TINYOS_MUSIC_ERROR;
+        else if (rescan_pending)
+            state = TINYOS_MUSIC_LOADING;
+        else
+            state = count == 0 ? TINYOS_MUSIC_EMPTY : TINYOS_MUSIC_NORMAL;
+    }
 
-        lv_obj_t *rescan = tinyos_obj(parent, 78, 146, 84, 20);
-        lv_obj_add_style(rescan, &tinyos_theme.pill, 0);
-        lv_obj_set_style_bg_color(rescan, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
-        tinyos_focus(rescan);
-        tinyos_add_click(rescan, rescan_cb, NULL);
-        lv_obj_add_event_cb(rescan, music_key_cb, LV_EVENT_KEY, view);
-        lv_obj_t *label = tinyos_label(rescan, "RESCAN", &lv_font_montserrat_10,
-                                       TINYOS_COLOR_CYAN, 0, 6, 84, 10);
-        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-        tinyos_shell_add_focus(ctx, rescan);
+    if (state == TINYOS_MUSIC_LOADING) {
+        state_card(ctx, parent, "Scanning music", "Reading /data/music",
+                   LV_SYMBOL_REFRESH, TINYOS_COLOR_CYAN);
+        int width = large ? 100 : 84;
+        lv_obj_t *back_btn = state_button(parent, (212 - width) / 2 + 14,
+                                          large ? 142 : 144, width, "BACK",
+                                          back_cb, view);
+        tinyos_shell_add_focus(ctx, back_btn);
         tinyos_shell_add_focus(ctx, back);
-
         lv_obj_add_event_cb(parent, music_delete_cb, LV_EVENT_DELETE, view);
         return parent;
     }
 
-    lv_obj_t *art = tinyos_card(parent, 14, 34, 60, 60);
+    if (state == TINYOS_MUSIC_ERROR) {
+        state_card(ctx, parent, "Can't read music",
+                   large ? "Check the SD card." : "Check the SD card, then retry.",
+                   LV_SYMBOL_WARNING, TINYOS_COLOR_RED);
+        int retry_w = large ? 84 : 72;
+        int back_w = large ? 64 : 56;
+        int gap = 8;
+        int x = (212 - (retry_w + gap + back_w)) / 2 + 14;
+        lv_obj_t *retry = state_button(parent, x, large ? 142 : 144, retry_w,
+                                       "RETRY", rescan_cb, view);
+        lv_obj_t *back_btn = state_button(parent, x + retry_w + gap,
+                                          large ? 142 : 144, back_w, "BACK",
+                                          back_cb, view);
+        tinyos_shell_add_focus(ctx, retry);
+        tinyos_shell_add_focus(ctx, back_btn);
+        tinyos_shell_add_focus(ctx, back);
+        lv_obj_add_event_cb(parent, music_delete_cb, LV_EVENT_DELETE, view);
+        return parent;
+    }
+
+    if (state == TINYOS_MUSIC_EMPTY) {
+        state_card(ctx, parent, "No tracks yet",
+                   large ? "WAV files: /data/music" : "Copy WAV files to /data/music",
+                   LV_SYMBOL_AUDIO, TINYOS_COLOR_CYAN);
+        int width = large ? 100 : 84;
+        lv_obj_t *rescan = state_button(parent, (212 - width) / 2 + 14,
+                                        large ? 142 : 144, width, "RESCAN",
+                                        rescan_cb, view);
+        tinyos_shell_add_focus(ctx, rescan);
+        tinyos_shell_add_focus(ctx, back);
+        lv_obj_add_event_cb(parent, music_delete_cb, LV_EVENT_DELETE, view);
+        return parent;
+    }
+
+    build_view(ctx, parent, view);
+
+    tinyos_shell_add_focus(ctx, back);
+    view->timer = lv_timer_create(music_timer_cb, 700, view);
+    lv_obj_add_event_cb(parent, music_delete_cb, LV_EVENT_DELETE, view);
+    music_refresh(view);
+    return parent;
+}
+
+static lv_obj_t *build_view(tinyos_ctx *ctx, lv_obj_t *parent, music_view *view)
+{
+    bool large = tinyos_large_text();
+    int art_size = large ? 52 : 60;
+    int art_x = large ? 10 : 14;
+    int art_y = large ? 38 : 34;
+    lv_obj_t *art = tinyos_card(parent, art_x, art_y, art_size, art_size);
     tinyos_gradient(art, TINYOS_COLOR_CYAN_DEEP, TINYOS_COLOR_VIOLET);
     lv_obj_set_style_radius(art, 14, 0);
-    lv_obj_t *disc = tinyos_obj(art, 10, 10, 40, 40);
+    int inset = large ? 9 : 10;
+    int disc_size = art_size - inset * 2;
+    lv_obj_t *disc = tinyos_obj(art, inset, inset, disc_size, disc_size);
     lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(disc, lv_color_hex(TINYOS_COLOR_BG), 0);
     lv_obj_set_style_bg_opa(disc, LV_OPA_80, 0);
-    tinyos_icon(disc, LV_SYMBOL_AUDIO, TINYOS_COLOR_TEXT, 10, 10, 20);
+    int glyph = large ? 18 : 20;
+    tinyos_icon(disc, LV_SYMBOL_AUDIO, TINYOS_COLOR_TEXT,
+                (disc_size - glyph) / 2, (disc_size - glyph) / 2, glyph);
 
     view->title = tinyos_label(parent, "-", &lv_font_montserrat_16, TINYOS_COLOR_TEXT,
-                               86, 38, 140, 22);
+                               large ? 72 : 86, large ? 36 : 38, large ? 154 : 140,
+                               large ? 26 : 22);
     view->artist = tinyos_label(parent, "TinyOS Sessions", &lv_font_montserrat_10,
-                                TINYOS_COLOR_MUTED, 86, 63, 140, 13);
+                                TINYOS_COLOR_MUTED, large ? 72 : 86,
+                                large ? 62 : 63, large ? 154 : 140, large ? 18 : 13);
     view->format = tinyos_label(parent, "WAV - local", &lv_font_montserrat_10,
-                                TINYOS_COLOR_DIM, 86, 78, 140, 13);
+                                TINYOS_COLOR_DIM, large ? 72 : 86,
+                                large ? 80 : 78, large ? 154 : 140, large ? 18 : 13);
 
     view->bar = lv_bar_create(parent);
-    lv_obj_set_pos(view->bar, 14, 102);
-    lv_obj_set_size(view->bar, 212, 4);
+    lv_obj_set_pos(view->bar, 14, large ? 104 : 102);
+    lv_obj_set_size(view->bar, 212, large ? 5 : 4);
     lv_bar_set_range(view->bar, 0, 1000);
     lv_obj_set_style_bg_color(view->bar, lv_color_hex(TINYOS_COLOR_LINE), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(view->bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(view->bar, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(view->bar, lv_color_hex(TINYOS_COLOR_CYAN), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(view->bar, lv_color_hex(TINYOS_COLOR_CYAN),
+                              LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(view->bar, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(view->bar, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
     lv_obj_set_style_anim_duration(view->bar, 450, 0);
 
     view->position = tinyos_label(parent, "0:00", &lv_font_montserrat_10,
-                                  TINYOS_COLOR_MUTED, 14, 108, 60, 12);
+                                  TINYOS_COLOR_MUTED, 14, large ? 112 : 108, 60,
+                                  large ? 18 : 12);
     view->duration = tinyos_label(parent, "0:00", &lv_font_montserrat_10,
-                                  TINYOS_COLOR_MUTED, 166, 108, 60, 12);
+                                  TINYOS_COLOR_MUTED, 166, large ? 112 : 108, 60,
+                                  large ? 18 : 12);
     lv_obj_set_style_text_align(view->duration, LV_TEXT_ALIGN_RIGHT, 0);
 
-    lv_obj_t *prev = icon_button(parent, 66, 132, 28, 16, LV_SYMBOL_PREV,
-                                 TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_MUTED, prev_cb, view);
-    lv_obj_t *play = icon_button(parent, 98, 124, 44, 22, LV_SYMBOL_PLAY,
-                                 TINYOS_COLOR_CYAN, TINYOS_COLOR_ON_ACCENT, play_cb, view);
-    lv_obj_t *next = icon_button(parent, 146, 132, 28, 16, LV_SYMBOL_NEXT,
-                                 TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_MUTED, next_cb, view);
+    int prev_y = large ? 136 : 132;
+    int play_size = large ? 46 : 44;
+    int play_y = large ? 128 : 124;
+    lv_obj_t *prev = icon_button(parent, large ? 62 : 66, prev_y, large ? 30 : 28,
+                                 large ? 16 : 16, LV_SYMBOL_PREV,
+                                 TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_MUTED,
+                                 prev_cb, view);
+    lv_obj_t *play = icon_button(parent, large ? 97 : 98, play_y, play_size,
+                                 large ? 24 : 22, LV_SYMBOL_PLAY, TINYOS_COLOR_CYAN,
+                                 TINYOS_COLOR_ON_ACCENT, play_cb, view);
+    lv_obj_t *next = icon_button(parent, large ? 148 : 146, prev_y,
+                                 large ? 30 : 28, large ? 16 : 16, LV_SYMBOL_NEXT,
+                                 TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_MUTED,
+                                 next_cb, view);
 
     view->play_icon = lv_obj_get_child(play, 0);
-    /* No large glow: it washed out the hint line and costs a shadow layer. */
 
     tinyos_shell_add_focus(ctx, play);
     tinyos_shell_add_focus(ctx, prev);
     tinyos_shell_add_focus(ctx, next);
-    tinyos_shell_add_focus(ctx, back);
-
-    view->timer = lv_timer_create(music_timer_cb, 700, view);
-    lv_obj_add_event_cb(parent, music_delete_cb, LV_EVENT_DELETE, view);
 
     tinyos_reveal(art, 0);
     tinyos_reveal(view->title, 40);
     tinyos_reveal(play, 80);
-    music_refresh(view);
     return parent;
 }
 

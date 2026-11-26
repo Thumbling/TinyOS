@@ -19,6 +19,7 @@ void tinyos_settings_defaults(tinyos_settings *settings)
     settings->wallpaper = 0;
     settings->wallpaper_speed = 2;
     settings->font_family = 0;
+    settings->text_scale = 100;
 }
 
 bool tinyos_settings_load(tinyos_settings *settings, const char *path)
@@ -63,6 +64,9 @@ bool tinyos_settings_load(tinyos_settings *settings, const char *path)
             settings->wallpaper_speed = tinyos_clamp_int(atoi(value), 0, 3);
         } else if (strcmp(key, "font_family") == 0) {
             settings->font_family = tinyos_clamp_int(atoi(value), 0, 5);
+        } else if (strcmp(key, "text_scale") == 0) {
+            int scale = atoi(value);
+            settings->text_scale = scale >= 130 ? 130 : scale >= 115 ? 115 : 100;
         }
     }
     return true;
@@ -92,11 +96,12 @@ bool tinyos_settings_save(const tinyos_settings *settings, const char *path)
              "theme=%d\n"
              "wallpaper=%d\n"
              "wallpaper_speed=%d\n"
-             "font_family=%d\n",
+             "font_family=%d\n"
+             "text_scale=%d\n",
              settings->brightness, settings->volume, settings->clock_24h ? 1 : 0,
              settings->performance, settings->reduce_motion ? 1 : 0,
              settings->theme, settings->wallpaper, settings->wallpaper_speed,
-             settings->font_family);
+             settings->font_family, settings->text_scale);
 
     return tinyos_write_file_atomic(path, buffer) == 0;
 }

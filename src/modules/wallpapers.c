@@ -2,6 +2,7 @@
 
 #include "../core/settings.h"
 #include "../platform.h"
+#include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../ui/theme.h"
 #include "../ui/wallpaper.h"
@@ -49,7 +50,8 @@ static void rebuild_preview(void)
         tinyos_wallpaper_destroy(preview_wallpaper);
         preview_wallpaper = NULL;
     }
-    preview_wallpaper = tinyos_wallpaper_create(preview_card, 212, 54,
+    int height = tinyos_large_text() ? 48 : 54;
+    preview_wallpaper = tinyos_wallpaper_create(preview_card, 212, height,
                                                 ctx->settings.wallpaper,
                                                 effective_speed(ctx), true);
 }
@@ -117,17 +119,21 @@ static lv_obj_t *option_row(tinyos_ctx *ctx, lv_obj_t *parent, int y,
                             const char *value, lv_event_cb_t click,
                             lv_event_cb_t key)
 {
-    lv_obj_t *row = tinyos_obj(parent, 14, y, 212, 22);
+    bool large = tinyos_large_text();
+    lv_obj_t *row = tinyos_obj(parent, 14, y, 212, large ? 38 : 22);
     lv_obj_add_style(row, &tinyos_theme.row, 0);
-    tinyos_icon(row, icon, color, 8, 4, 14);
-    tinyos_label(row, text, &lv_font_montserrat_12, TINYOS_COLOR_TEXT, 28, 2, 74, 15);
-    lv_obj_t *pill = tinyos_obj(row, 106, 2, 72, 18);
+    tinyos_icon(row, icon, color, 8, large ? 4 : 4, 14);
+    tinyos_label(row, text, &lv_font_montserrat_12, TINYOS_COLOR_TEXT,
+                 28, large ? 0 : 2, large ? 180 : 74, large ? 20 : 15);
+    lv_obj_t *pill = tinyos_obj(row, large ? 28 : 106, large ? 20 : 2,
+                                large ? 110 : 72, large ? 18 : 18);
     lv_obj_add_style(pill, &tinyos_theme.pill, 0);
     lv_obj_set_style_bg_color(pill, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
     lv_obj_t *label = tinyos_label(pill, value, &lv_font_montserrat_10, color,
-                                   0, 3, 72, 12);
+                                   0, large ? 1 : 3, large ? 110 : 72, large ? 16 : 12);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    tinyos_icon(row, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, 186, 5, 12);
+    tinyos_icon(row, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, large ? 196 : 186,
+                large ? 21 : 5, 12);
     tinyos_focus(row);
     tinyos_shell_add_focus(ctx, row);
     lv_obj_add_event_cb(row, click, LV_EVENT_CLICKED, NULL);
@@ -147,23 +153,28 @@ static lv_obj_t *wallpapers_create(tinyos_ctx *ctx, lv_obj_t *parent)
     tinyos_add_click(back, back_cb, NULL);
     tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
     lv_obj_center(lv_obj_get_child(back, 0));
+    bool large = tinyos_large_text();
     tinyos_label(parent, "Wallpapers", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
                  44, 2, 170, 24);
-    tinyos_label(parent, "Animated backdrop", &lv_font_montserrat_10,
-                 TINYOS_COLOR_MUTED, 44, 25, 180, 12);
+    if (!large)
+        tinyos_label(parent, "Animated backdrop", &lv_font_montserrat_10,
+                     TINYOS_COLOR_MUTED, 44, 25, 180, 12);
 
-    preview_card = tinyos_card(parent, 14, 42, 212, 54);
+    preview_card = tinyos_card(parent, 14, large ? 36 : 42, 212, large ? 50 : 54);
     lv_obj_set_style_border_width(preview_card, 1, 0);
     lv_obj_set_style_clip_corner(preview_card, true, 0);
 
-    style_value = option_row(ctx, parent, 100, LV_SYMBOL_IMAGE, TINYOS_COLOR_CYAN,
-                             "Wallpaper", tinyos_wallpaper_name(ctx->settings.wallpaper),
+    style_value = option_row(ctx, parent, large ? 94 : 100, LV_SYMBOL_IMAGE,
+                             TINYOS_COLOR_CYAN, "Wallpaper",
+                             tinyos_wallpaper_name(ctx->settings.wallpaper),
                              style_clicked, style_key);
-    speed_value = option_row(ctx, parent, 124, LV_SYMBOL_LOOP, TINYOS_COLOR_GREEN,
-                             "Speed", tinyos_wallpaper_speed_name(ctx->settings.wallpaper_speed),
+    speed_value = option_row(ctx, parent, large ? 134 : 124, LV_SYMBOL_LOOP,
+                             TINYOS_COLOR_GREEN, "Speed",
+                             tinyos_wallpaper_speed_name(ctx->settings.wallpaper_speed),
                              speed_clicked, speed_key);
-    tinyos_label(parent, "X / Y adjust     A cycle", &lv_font_montserrat_10,
-                 TINYOS_COLOR_MUTED, 14, 152, 212, 13);
+    if (!large)
+        tinyos_label(parent, "X / Y adjust     A cycle", &lv_font_montserrat_10,
+                     TINYOS_COLOR_MUTED, 14, 152, 212, 13);
 
     rebuild_preview();
     tinyos_shell_add_focus(ctx, back);

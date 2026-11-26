@@ -1,5 +1,7 @@
 #include "widgets.h"
 
+#include "scale.h"
+
 #include "fonts.h"
 #include "shell.h"
 #include "theme.h"
@@ -59,7 +61,18 @@ lv_obj_t *tinyos_label(lv_obj_t *parent, const char *text, const lv_font_t *font
     else if (height > 0)
         lv_obj_set_height(label, height);
     lv_obj_set_pos(label, x, y);
-    lv_obj_set_style_text_font(label, tinyos_font_map(font), 0);
+    const lv_font_t *scaled = tinyos_font_scale(font);
+    lv_obj_set_style_text_font(label, scaled, 0);
+    if (tinyos_large_text() && height > 0) {
+        int line = lv_font_get_line_height(scaled) + 1;
+        if (height < line) {
+            height = line;
+            if (width > 0)
+                lv_obj_set_size(label, width, height);
+            else
+                lv_obj_set_height(label, height);
+        }
+    }
     lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, 0);
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
@@ -121,6 +134,15 @@ static int center_y(lv_obj_t *obj)
     return (area.y1 + area.y2) / 2;
 }
 
+static lv_obj_t *scroll_parent(lv_obj_t *obj)
+{
+    lv_obj_t *parent = lv_obj_get_parent(obj);
+    while (parent && parent != lv_screen_active()
+           && lv_obj_get_scroll_dir(parent) == LV_DIR_NONE)
+        parent = lv_obj_get_parent(parent);
+    return (parent && parent != lv_screen_active()) ? parent : NULL;
+}
+
 static lv_obj_t *spatial_focus(lv_group_t *group, uint32_t key)
 {
     lv_obj_t *current = lv_group_get_focused(group);
@@ -129,13 +151,23 @@ static lv_obj_t *spatial_focus(lv_group_t *group, uint32_t key)
 
     int current_x = center_x(current);
     int current_y = center_y(current);
+    lv_obj_t *current_scroll = scroll_parent(current);
     int best_score = INT_MAX;
     lv_obj_t *best = NULL;
     uint32_t count = lv_group_get_obj_count(group);
     for (uint32_t i = 0; i < count; i++) {
         lv_obj_t *candidate = lv_group_get_obj_by_index(group, i);
-        if (!candidate || candidate == current || !lv_obj_is_visible(candidate))
+        if (!candidate || candidate == current)
             continue;
+        /* Rows below a list viewport are still legitimate focus targets; the
+         * focus_into_view() call scrolls them in. Without this, the first key
+         * down from the last visible row jumped into the tab bar instead of
+         * continuing through the list. */
+        lv_obj_t *candidate_scroll = scroll_parent(candidate);
+        if (!lv_obj_is_visible(candidate)) {
+            if (!current_scroll || current_scroll != candidate_scroll)
+                continue;
+        }
         if (lv_obj_has_state(candidate, LV_STATE_DISABLED))
             continue;
 
@@ -156,6 +188,10 @@ static lv_obj_t *spatial_focus(lv_group_t *group, uint32_t key)
         int primary = horizontal ? abs(dx) : abs(dy);
         int secondary = horizontal ? abs(dy) : abs(dx);
         int score = primary * 4 + secondary;
+        /* While a list has focus, exhaust it before entering the tab bar,
+         * even when the next row is still clipped below the viewport. */
+        if (current_scroll && candidate_scroll != current_scroll)
+            score += 10000;
         if (score < best_score) {
             best_score = score;
             best = candidate;

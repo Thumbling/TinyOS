@@ -23,6 +23,7 @@ typedef struct {
     int wallpaper;
     int wallpaper_speed;
     int font_family;
+    int text_scale; /* 100, 115 or 130 percent */
 } tinyos_settings;
 
 void tinyos_settings_defaults(tinyos_settings *settings);
