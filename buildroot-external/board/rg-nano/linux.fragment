@@ -5,6 +5,11 @@ CONFIG_LOCALVERSION="-tinyos"
 CONFIG_LOCALVERSION_AUTO=n
 CONFIG_DEFAULT_HOSTNAME="tinyos"
 
+# Embed the kernel configuration in the image so it can be verified from the
+# built artifact instead of the build tree.
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+
 # --- display: mainline panel-mipi-dbi on SPI0 ---
 CONFIG_DRM=y
 CONFIG_DRM_FBDEV_EMULATION=y
