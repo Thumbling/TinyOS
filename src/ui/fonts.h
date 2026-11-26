@@ -9,6 +9,7 @@
 void tinyos_fonts_select(int family);
 int tinyos_fonts_active(void);
 const char *tinyos_font_family_name(int family);
+const char *tinyos_font_family_short_name(int family);
 const lv_font_t *tinyos_font_ui(int size);
 const lv_font_t *tinyos_font_family(int family, int size);
 const lv_font_t *tinyos_font_map(const lv_font_t *requested);

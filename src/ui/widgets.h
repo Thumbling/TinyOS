@@ -15,5 +15,7 @@ void tinyos_focus(lv_obj_t *obj);
 void tinyos_add_click(lv_obj_t *obj, lv_event_cb_t callback, void *data);
 void tinyos_reveal(lv_obj_t *obj, uint32_t delay_ms);
 void tinyos_content_in(lv_obj_t *obj);
+void tinyos_pop_in(lv_obj_t *obj);
+void tinyos_nudge(lv_obj_t *obj, int dx);
 
 #endif

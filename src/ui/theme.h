@@ -30,7 +30,9 @@ typedef struct {
     lv_style_t card;
     lv_style_t tile;
     lv_style_t focus;
+    lv_style_t pressed;
     lv_style_t nav;
+    lv_style_t nav_item;
     lv_style_t nav_active;
     lv_style_t row;
     lv_style_t pill;
@@ -76,6 +78,7 @@ void tinyos_theme_apply(int index);
 void tinyos_theme_init(void);
 int tinyos_theme_index(void);
 const char *tinyos_theme_name(int index);
+const char *tinyos_theme_short_name(int index);
 const tinyos_theme_definition_t *tinyos_theme_definition(int index);
 
 /* Linear sRGB interpolation; ratio_b is 0 (a) .. 255 (b). */

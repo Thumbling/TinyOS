@@ -8,6 +8,11 @@
 
 #include <stdint.h>
 
+static void back_cb(lv_event_t *event)
+{
+    tinyos_shell_back(tinyos_ctx_get());
+}
+
 static void font_clicked(lv_event_t *event)
 {
     lv_obj_t *row = lv_event_get_target(event);
@@ -21,46 +26,56 @@ static void font_clicked(lv_event_t *event)
 
 static lv_obj_t *typeface_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
+    lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
+    lv_obj_add_style(back, &tinyos_theme.pill, 0);
+    lv_obj_set_style_radius(back, 10, 0);
+    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
+    tinyos_focus(back);
+    tinyos_add_click(back, back_cb, NULL);
+    tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
+    lv_obj_center(lv_obj_get_child(back, 0));
     tinyos_label(parent, "Typeface", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 14, 0, 212, 24);
+                 44, 2, 170, 24);
     tinyos_label(parent, "Aa 0123  -  pick a voice", &lv_font_montserrat_10,
-                 TINYOS_COLOR_MUTED, 14, 26, 212, 12);
+                 TINYOS_COLOR_MUTED, 44, 25, 180, 12);
 
     for (int i = 0; i < TINYOS_FONT_FAMILY_COUNT; i++) {
         bool selected = i == ctx->settings.font_family;
-        lv_obj_t *row = tinyos_obj(parent, 14, 42 + i * 22, 212, 20);
+        lv_obj_t *row = tinyos_obj(parent, 14, 42 + i * 21, 212, 21);
         lv_obj_add_style(row, &tinyos_theme.row, 0);
+        lv_obj_set_style_radius(row, 9, 0);
         if (selected)
             lv_obj_set_style_bg_color(row, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
 
-        lv_obj_t *mark = tinyos_obj(row, 4, 4, 3, 12);
-        lv_obj_set_style_radius(mark, 2, 0);
-        lv_obj_set_style_bg_color(mark, lv_color_hex(selected ? TINYOS_COLOR_CYAN
-                                                               : TINYOS_COLOR_DIM),
-                                  0);
-        lv_obj_set_style_bg_opa(mark, selected ? LV_OPA_COVER : LV_OPA_50, 0);
+        if (selected) {
+            lv_obj_t *mark = tinyos_obj(row, 4, 4, 3, 13);
+            lv_obj_set_style_radius(mark, 2, 0);
+            lv_obj_set_style_bg_color(mark, lv_color_hex(TINYOS_COLOR_CYAN), 0);
+            lv_obj_set_style_bg_opa(mark, LV_OPA_COVER, 0);
+        }
 
         lv_obj_t *name = tinyos_label(row, tinyos_font_family_name(i),
-                                      &lv_font_montserrat_10,
+                                      &lv_font_montserrat_12,
                                       selected ? TINYOS_COLOR_TEXT : TINYOS_COLOR_MUTED,
-                                      14, 4, 86, 12);
+                                      16, 2, 100, 15);
         lv_obj_set_style_text_color(name, lv_color_hex(selected ? TINYOS_COLOR_TEXT
                                                                 : TINYOS_COLOR_MUTED),
                                     0);
 
         lv_obj_t *sample = tinyos_label(row, "Aa 012", tinyos_font_family(i, 12),
                                         selected ? TINYOS_COLOR_CYAN : TINYOS_COLOR_MUTED,
-                                        104, 2, 72, 16);
+                                        120, 2, 58, 16);
         (void)sample;
 
         if (selected)
-            tinyos_icon(row, LV_SYMBOL_OK, TINYOS_COLOR_CYAN, 188, 5, 10);
+            tinyos_icon(row, LV_SYMBOL_OK, TINYOS_COLOR_CYAN, 186, 4, 12);
 
         tinyos_focus(row);
         tinyos_shell_add_focus(ctx, row);
         lv_obj_set_user_data(row, (void *)(intptr_t)i);
         lv_obj_add_event_cb(row, font_clicked, LV_EVENT_CLICKED, NULL);
     }
+    tinyos_shell_add_focus(ctx, back);
     return parent;
 }
 

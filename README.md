@@ -26,7 +26,7 @@ application stack.
 - A custom **LVGL 9.6** shell with **25 runtime palettes**, **10 animated
   wallpapers**, **6 typefaces at 8–28 px**, animated screen transitions and a
   focus ring designed for physical buttons. Every palette is contrast-checked;
-  no text is smaller than 8 px and no layout relies on scaling.
+  no text is smaller than 10 px and no layout relies on scaling.
 - A **Linux 6.12 LTS** firmware built with **Buildroot 2025.02.3**, **musl** and
   **BusyBox**; the kernel boots from a plain ext4 root filesystem.
 - A modern **U-Boot 2025.10** boot chain with a reproducible SD-card image.
@@ -65,6 +65,8 @@ make sim
 
 `--theme` accepts `0…24`, `--font` accepts `0…5` and `--wallpaper` accepts
 `0…9`. The numbered order is also the order shown in the on-device pickers.
+`--frames N` stops after N 16 ms frames (default 90), so a single frame in
+the middle of an entrance, dialog or value animation can be inspected.
 
 Render every screen into `docs/`:
 

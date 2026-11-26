@@ -7,6 +7,12 @@
 #include <limits.h>
 #include <stdlib.h>
 
+static bool reduce_motion(void)
+{
+    tinyos_ctx *ctx = tinyos_ctx_get();
+    return ctx && ctx->settings.reduce_motion;
+}
+
 static void animate_opa(void *var, int32_t value)
 {
     lv_obj_set_style_opa((lv_obj_t *)var, (lv_opa_t)value, 0);
@@ -64,16 +70,26 @@ lv_obj_t *tinyos_label(lv_obj_t *parent, const char *text, const lv_font_t *font
 lv_obj_t *tinyos_icon(lv_obj_t *parent, const char *symbol, uint32_t color,
                       int x, int y, int size)
 {
-    const lv_font_t *font = &lv_font_montserrat_16;
+    /* The glyph has to fit the box it is given: a 16 px font in a 10 px box
+     * is exactly the clipped arrow the design review found. Pick the font
+     * that survives the box and centre it inside, so a mark never loses its
+     * tips no matter which call site places it. */
+    const lv_font_t *font = &lv_font_montserrat_10;
     if (size >= 26)
         font = &lv_font_montserrat_28;
     else if (size >= 18)
         font = &lv_font_montserrat_20;
+    else if (size >= 14)
+        font = &lv_font_montserrat_16;
+    else if (size >= 12)
+        font = &lv_font_montserrat_12;
 
     lv_obj_t *label = lv_label_create(parent);
     lv_label_set_text(label, symbol);
     lv_obj_set_pos(label, x, y);
     lv_obj_set_size(label, size, size);
+    lv_obj_set_style_pad_all(label, 0, 0);
+    lv_obj_set_style_pad_top(label, (size - lv_font_get_line_height(font)) / 2, 0);
     lv_obj_set_style_text_font(label, font, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
@@ -148,10 +164,22 @@ static lv_obj_t *spatial_focus(lv_group_t *group, uint32_t key)
     return best;
 }
 
+static void focus_into_view(lv_obj_t *obj)
+{
+    lv_obj_t *parent = lv_obj_get_parent(obj);
+    while (parent && lv_obj_get_scroll_dir(parent) == LV_DIR_NONE)
+        parent = lv_obj_get_parent(parent);
+    if (parent && parent != lv_screen_active())
+        lv_obj_scroll_to_view(obj, reduce_motion() ? LV_ANIM_OFF : LV_ANIM_ON);
+}
+
 static void global_key_cb(lv_event_t *event)
 {
     uint32_t key = lv_event_get_key(event);
     tinyos_ctx *ctx = tinyos_ctx_get();
+    lv_group_t *group = ctx->input ? lv_indev_get_group(ctx->input) : ctx->group;
+    if (!group)
+        return;
 
     if (key == LV_KEY_ESC) {
         tinyos_shell_back(ctx);
@@ -161,11 +189,12 @@ static void global_key_cb(lv_event_t *event)
         lv_event_stop_processing(event);
     } else if (key == LV_KEY_UP || key == LV_KEY_DOWN ||
                key == LV_KEY_LEFT || key == LV_KEY_RIGHT) {
-        if (!ctx->group || lv_group_get_editing(ctx->group))
+        if (lv_group_get_editing(group))
             return;
-        lv_obj_t *next = spatial_focus(ctx->group, key);
+        lv_obj_t *next = spatial_focus(group, key);
         if (next) {
             lv_group_focus_obj(next);
+            focus_into_view(next);
             lv_event_stop_processing(event);
         }
     }
@@ -175,6 +204,7 @@ void tinyos_focus(lv_obj_t *obj)
 {
     lv_obj_set_clickable(obj, true);
     lv_obj_add_style(obj, &tinyos_theme.focus, LV_STATE_FOCUSED);
+    lv_obj_add_style(obj, &tinyos_theme.pressed, LV_STATE_PRESSED);
     lv_obj_add_event_cb(obj, global_key_cb, LV_EVENT_KEY, NULL);
 }
 
@@ -186,6 +216,11 @@ void tinyos_add_click(lv_obj_t *obj, lv_event_cb_t callback, void *data)
 
 void tinyos_reveal(lv_obj_t *obj, uint32_t delay_ms)
 {
+    if (reduce_motion()) {
+        lv_obj_set_style_opa(obj, LV_OPA_COVER, 0);
+        lv_obj_set_style_translate_y(obj, 0, 0);
+        return;
+    }
     lv_obj_set_style_opa(obj, LV_OPA_TRANSP, 0);
     lv_obj_set_style_translate_y(obj, 12, 0);
 
@@ -212,6 +247,11 @@ void tinyos_reveal(lv_obj_t *obj, uint32_t delay_ms)
 
 void tinyos_content_in(lv_obj_t *obj)
 {
+    if (reduce_motion()) {
+        lv_obj_set_style_opa(obj, LV_OPA_COVER, 0);
+        lv_obj_set_style_translate_x(obj, 0, 0);
+        return;
+    }
     lv_obj_set_style_opa(obj, LV_OPA_TRANSP, 0);
     lv_obj_set_style_translate_x(obj, 10, 0);
 
@@ -229,6 +269,55 @@ void tinyos_content_in(lv_obj_t *obj)
     lv_anim_set_var(&slide, obj);
     lv_anim_set_values(&slide, 10, 0);
     lv_anim_set_duration(&slide, 240);
+    lv_anim_set_exec_cb(&slide, animate_translate_x);
+    lv_anim_set_path_cb(&slide, lv_anim_path_ease_out);
+    lv_anim_start(&slide);
+}
+
+/* A dialog enters faster than a screen: 150 ms fade + 8 px rise. */
+void tinyos_pop_in(lv_obj_t *obj)
+{
+    if (!obj)
+        return;
+    if (reduce_motion()) {
+        lv_obj_set_style_opa(obj, LV_OPA_COVER, 0);
+        lv_obj_set_style_translate_y(obj, 0, 0);
+        return;
+    }
+    lv_obj_set_style_opa(obj, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_translate_y(obj, 8, 0);
+
+    lv_anim_t fade;
+    lv_anim_init(&fade);
+    lv_anim_set_var(&fade, obj);
+    lv_anim_set_values(&fade, LV_OPA_TRANSP, LV_OPA_COVER);
+    lv_anim_set_duration(&fade, 150);
+    lv_anim_set_exec_cb(&fade, animate_opa);
+    lv_anim_set_path_cb(&fade, lv_anim_path_ease_out);
+    lv_anim_start(&fade);
+
+    lv_anim_t slide;
+    lv_anim_init(&slide);
+    lv_anim_set_var(&slide, obj);
+    lv_anim_set_values(&slide, 8, 0);
+    lv_anim_set_duration(&slide, 160);
+    lv_anim_set_exec_cb(&slide, animate_translate_y);
+    lv_anim_set_path_cb(&slide, lv_anim_path_ease_out);
+    lv_anim_start(&slide);
+}
+
+/* Value stepping feedback: a 6 px settle, no overshoot. */
+void tinyos_nudge(lv_obj_t *obj, int dx)
+{
+    if (!obj || reduce_motion())
+        return;
+    lv_anim_delete(obj, animate_translate_x);
+    lv_obj_set_style_translate_x(obj, dx, 0);
+    lv_anim_t slide;
+    lv_anim_init(&slide);
+    lv_anim_set_var(&slide, obj);
+    lv_anim_set_values(&slide, dx, 0);
+    lv_anim_set_duration(&slide, 140);
     lv_anim_set_exec_cb(&slide, animate_translate_x);
     lv_anim_set_path_cb(&slide, lv_anim_path_ease_out);
     lv_anim_start(&slide);

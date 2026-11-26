@@ -15,7 +15,7 @@ static void usage(const char *program)
 {
     fprintf(stderr, "usage: %s [--screen home|apps|settings|music|system|about|"
                     "appearance|themes|wallpapers|typeface] [--out file.png] "
-                    "[--theme N] [--font N] [--wallpaper N]\n", program);
+                    "[--theme N] [--font N] [--wallpaper N] [--frames N]\n", program);
 }
 
 int main(int argc, char **argv)
@@ -25,6 +25,7 @@ int main(int argc, char **argv)
     int theme = -1;
     int font = -1;
     int wallpaper = -1;
+    int frames = 90;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--screen") == 0 && i + 1 < argc) {
@@ -37,6 +38,10 @@ int main(int argc, char **argv)
             font = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--wallpaper") == 0 && i + 1 < argc) {
             wallpaper = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
+            frames = atoi(argv[++i]);
+            if (frames < 1)
+                frames = 1;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             usage(argv[0]);
             return 0;
@@ -70,7 +75,7 @@ int main(int argc, char **argv)
     else
         tinyos_shell_show(ctx, screen);
 
-    for (int frame = 0; frame < 90; frame++) {
+    for (int frame = 0; frame < frames; frame++) {
         tinyos_host_tick_advance(16);
         lv_timer_handler();
     }

@@ -1,6 +1,7 @@
 #include "ui/fonts.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #define FONT_DECL(family, size) extern const lv_font_t tinyos_##family##_##size;
 #define FONT_ROW(family) { \
@@ -39,7 +40,7 @@ static const lv_font_t *const *const families[TINYOS_FONT_FAMILY_COUNT] = {
 };
 
 static const char *const family_names[TINYOS_FONT_FAMILY_COUNT] = {
-    "Montserrat", "Inter", "IBM Plex Sans", "Space Grotesk", "JetBrains Mono", "Atkinson HL",
+    "Montserrat", "Inter", "IBM Plex", "Space Grotesk", "JetBrains", "Atkinson HL",
 };
 
 static int active_family;
@@ -92,6 +93,12 @@ const char *tinyos_font_family_name(int family)
         family = active_family;
     }
     return family_names[family];
+}
+
+const char *tinyos_font_family_short_name(int family)
+{
+    const char *name = tinyos_font_family_name(family);
+    return strcmp(name, "Space Grotesk") == 0 ? "Grotesk" : name;
 }
 
 const lv_font_t *tinyos_font_ui(int size)

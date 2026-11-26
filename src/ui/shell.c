@@ -24,6 +24,27 @@ static bool is_tab(const char *id)
     return false;
 }
 
+/* A detail screen keeps the tab of the section it was opened from: Settings
+ * stays lit on Appearance, Library stays lit on Music. Focus is still drawn
+ * separately, so "selected" and "focused" never share one treatment. */
+static const char *active_tab(tinyos_ctx *ctx, const tinyos_module *module)
+{
+    if (is_tab(module->id))
+        return module->id;
+    for (int i = ctx->back_depth - 1; i >= 0; i--) {
+        if (ctx->back_stack[i] && is_tab(ctx->back_stack[i]->id))
+            return ctx->back_stack[i]->id;
+    }
+    /* Standalone entry (simulator, deep link): use the canonical section. */
+    if (strcmp(module->id, "appearance") == 0 || strcmp(module->id, "themes") == 0 ||
+        strcmp(module->id, "wallpapers") == 0 || strcmp(module->id, "typeface") == 0)
+        return "settings";
+    if (strcmp(module->id, "music") == 0 || strcmp(module->id, "system") == 0 ||
+        strcmp(module->id, "about") == 0)
+        return "apps";
+    return "home";
+}
+
 static void nav_click_cb(lv_event_t *event)
 {
     const char *id = lv_event_get_user_data(event);
@@ -43,11 +64,10 @@ static void update_nav(tinyos_ctx *ctx, const char *active)
                                     lv_color_hex(selected ? TINYOS_COLOR_CYAN
                                                           : TINYOS_COLOR_MUTED),
                                     0);
-        lv_obj_set_style_bg_color(button,
-                                  lv_color_hex(selected ? TINYOS_COLOR_SURFACE_2
-                                                        : TINYOS_COLOR_SURFACE),
-                                  0);
-        lv_obj_set_style_bg_opa(button, selected ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+        if (selected)
+            lv_obj_add_state(button, LV_STATE_CHECKED);
+        else
+            lv_obj_remove_state(button, LV_STATE_CHECKED);
     }
 }
 
@@ -63,21 +83,16 @@ static void create_status_bar(tinyos_ctx *ctx)
                                     TINYOS_COLOR_TEXT, 14, 7, 58, 18);
     lv_obj_set_style_text_letter_space(ctx->status_time, 0, 0);
 
-    ctx->status_brand = tinyos_label(ctx->screen, "T I N Y O S", &lv_font_montserrat_8,
-                                     TINYOS_COLOR_DIM, 72, 10, 92, 12);
-    lv_obj_set_style_text_align(ctx->status_brand, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_letter_space(ctx->status_brand, 1, 0);
-
     ctx->status_battery_icon = lv_label_create(ctx->screen);
-    lv_obj_set_pos(ctx->status_battery_icon, 164, 8);
-    lv_obj_set_size(ctx->status_battery_icon, 16, 18);
-    lv_obj_set_style_text_font(ctx->status_battery_icon, &lv_font_montserrat_10, 0);
+    lv_obj_set_pos(ctx->status_battery_icon, 162, 6);
+    lv_obj_set_size(ctx->status_battery_icon, 18, 18);
+    lv_obj_set_style_text_font(ctx->status_battery_icon, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(ctx->status_battery_icon, lv_color_hex(TINYOS_COLOR_MUTED), 0);
     lv_obj_set_style_text_align(ctx->status_battery_icon, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(ctx->status_battery_icon, LV_SYMBOL_BATTERY_FULL);
 
-    ctx->status_battery = tinyos_label(ctx->screen, "--", &lv_font_montserrat_10,
-                                       TINYOS_COLOR_MUTED, 182, 8, 44, 18);
+    ctx->status_battery = tinyos_label(ctx->screen, "--", &lv_font_montserrat_14,
+                                       TINYOS_COLOR_MUTED, 182, 7, 44, 18);
     lv_obj_set_style_text_align(ctx->status_battery, LV_TEXT_ALIGN_RIGHT, 0);
 
     lv_obj_t *line = tinyos_obj(ctx->screen, 14, 26, 212, 1);
@@ -93,7 +108,8 @@ static void create_nav(tinyos_ctx *ctx)
     for (int i = 0; i < 3; i++) {
         lv_obj_t *button = tinyos_obj(ctx->nav_container, 8 + i * 68, 3, 60, 22);
         lv_obj_set_style_radius(button, 11, 0);
-        lv_obj_set_style_bg_opa(button, LV_OPA_TRANSP, 0);
+        lv_obj_add_style(button, &tinyos_theme.nav_item, 0);
+        lv_obj_add_style(button, &tinyos_theme.nav_active, LV_STATE_CHECKED);
         tinyos_focus(button);
         lv_obj_add_event_cb(button, nav_click_cb, LV_EVENT_CLICKED, (void *)tab_ids[i]);
 
@@ -239,7 +255,7 @@ void tinyos_shell_show(tinyos_ctx *ctx, const char *id)
     module->create(ctx, ctx->content);
 
     lv_group_focus_obj(ctx->first_focus ? ctx->first_focus : ctx->nav[0]);
-    update_nav(ctx, module->id);
+    update_nav(ctx, active_tab(ctx, module));
     tinyos_content_in(ctx->content);
     ctx->current = module;
     tinyos_shell_refresh_status(ctx);

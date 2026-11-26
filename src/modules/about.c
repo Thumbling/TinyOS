@@ -24,33 +24,33 @@ static lv_obj_t *about_create(tinyos_ctx *ctx, lv_obj_t *parent)
     tinyos_label(parent, "About", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
                  44, 2, 150, 24);
 
-    lv_obj_t *orb = tinyos_obj(parent, 94, 30, 52, 52);
+    lv_obj_t *orb = tinyos_obj(parent, 99, 22, 42, 42);
     lv_obj_set_style_radius(orb, LV_RADIUS_CIRCLE, 0);
     tinyos_gradient(orb, TINYOS_COLOR_CYAN, TINYOS_COLOR_VIOLET);
     lv_obj_set_style_shadow_width(orb, 18, 0);
     lv_obj_set_style_shadow_color(orb, lv_color_hex(TINYOS_COLOR_CYAN), 0);
     lv_obj_set_style_shadow_opa(orb, LV_OPA_30, 0);
-    lv_obj_t *inner = tinyos_obj(orb, 5, 5, 42, 42);
+    lv_obj_t *inner = tinyos_obj(orb, 4, 4, 34, 34);
     lv_obj_set_style_radius(inner, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(inner, lv_color_hex(TINYOS_COLOR_BG), 0);
     lv_obj_set_style_bg_opa(inner, LV_OPA_COVER, 0);
-    tinyos_label(inner, "T", &lv_font_montserrat_24, TINYOS_COLOR_TEXT, 0, 5, 42, 30);
+    tinyos_label(inner, "T", &lv_font_montserrat_20, TINYOS_COLOR_TEXT, 0, 5, 34, 24);
     lv_obj_set_style_text_align(lv_obj_get_child(inner, 0), LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *title = tinyos_label(parent, "TinyOS", &lv_font_montserrat_24,
-                                   TINYOS_COLOR_TEXT, 14, 84, 212, 26);
+                                   TINYOS_COLOR_TEXT, 14, 66, 212, 26);
     lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *version = tinyos_label(parent, TINYOS_CODENAME " / v" TINYOS_VERSION,
                                      &lv_font_montserrat_10, TINYOS_COLOR_CYAN,
-                                     14, 110, 212, 12);
+                                     14, 92, 212, 14);
     lv_obj_set_style_text_align(version, LV_TEXT_ALIGN_CENTER, 0);
 
     lv_obj_t *copy = tinyos_label(parent,
-                                  "A modular firmware built from mainline\n"
-                                  "Linux, U-Boot, Buildroot and LVGL.",
-                                  &lv_font_montserrat_8, TINYOS_COLOR_MUTED,
-                                  20, 126, 200, 22);
+                                  "A modular firmware built on\n"
+                                  "mainline Linux, U-Boot and LVGL.",
+                                  &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
+                                  20, 110, 200, 26);
     lv_obj_set_style_text_align(copy, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(copy, LV_LABEL_LONG_MODE_WRAP);
     lv_obj_set_style_text_line_space(copy, 0, 0);
@@ -58,8 +58,8 @@ static lv_obj_t *about_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_t *components = tinyos_label(parent,
                                         "Linux 6.12 LTS - U-Boot 2025.10\n"
                                         "Buildroot 2025.02 - LVGL 9.6",
-                                        &lv_font_montserrat_8, TINYOS_COLOR_DIM,
-                                        10, 150, 220, 20);
+                                        &lv_font_montserrat_10, TINYOS_COLOR_DIM,
+                                        10, 140, 220, 26);
     lv_obj_set_style_text_align(components, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(components, LV_LABEL_LONG_MODE_WRAP);
 

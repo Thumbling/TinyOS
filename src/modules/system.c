@@ -32,13 +32,13 @@ static void back_cb(lv_event_t *event)
 static lv_obj_t *stat_card(lv_obj_t *parent, int x, int y, const char *title,
                            lv_obj_t **value, lv_obj_t **sub)
 {
-    lv_obj_t *card = tinyos_card(parent, x, y, 102, 54);
+    lv_obj_t *card = tinyos_card(parent, x, y, 102, 56);
     tinyos_gradient(card, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
-    tinyos_label(card, title, &lv_font_montserrat_8, TINYOS_COLOR_DIM, 8, 6, 86, 10);
+    tinyos_label(card, title, &lv_font_montserrat_10, TINYOS_COLOR_DIM, 8, 5, 86, 13);
     *value = tinyos_label(card, "-", &lv_font_montserrat_16, TINYOS_COLOR_TEXT,
-                          8, 18, 86, 20);
-    *sub = tinyos_label(card, "", &lv_font_montserrat_8, TINYOS_COLOR_MUTED,
-                        8, 39, 86, 10);
+                          8, 19, 86, 20);
+    *sub = tinyos_label(card, "", &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
+                        8, 40, 86, 12);
     return card;
 }
 
@@ -114,15 +114,12 @@ static lv_obj_t *system_create(tinyos_ctx *ctx, lv_obj_t *parent)
     tinyos_label(parent, "System", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
                  44, 2, 150, 24);
     tinyos_label(parent, "Live hardware.", &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
-                 45, 24, 170, 12);
+                 44, 25, 180, 12);
 
     stat_card(parent, 14, 44, "CPU", &view->cpu_value, &view->cpu_sub);
     stat_card(parent, 124, 44, "MEMORY", &view->mem_value, &view->mem_sub);
-    stat_card(parent, 14, 104, "BATTERY", &view->battery_value, &view->battery_sub);
-    stat_card(parent, 124, 104, "UPTIME", &view->uptime_value, &view->uptime_sub);
-
-    tinyos_label(parent, "TinyOS " TINYOS_VERSION " - Linux 6.12 LTS",
-                 &lv_font_montserrat_8, TINYOS_COLOR_DIM, 14, 164, 212, 10);
+    stat_card(parent, 14, 108, "BATTERY", &view->battery_value, &view->battery_sub);
+    stat_card(parent, 124, 108, "UPTIME", &view->uptime_value, &view->uptime_sub);
 
     tinyos_shell_add_focus(ctx, back);
     view->timer = lv_timer_create(system_timer_cb, 1000, view);
@@ -140,6 +137,6 @@ const tinyos_module tinyos_module_system = {
     .id = "system",
     .name = "System",
     .subtitle = "Live hardware stats",
-    .icon = LV_SYMBOL_DRIVE,
+    .icon = LV_SYMBOL_CHARGE,
     .create = system_create,
 };

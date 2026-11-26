@@ -9,11 +9,15 @@
 
 #include <stdint.h>
 
+static void back_cb(lv_event_t *event)
+{
+    tinyos_shell_back(tinyos_ctx_get());
+}
+
 static tinyos_wallpaper *preview_wallpaper;
 static lv_obj_t *preview_card;
 static lv_obj_t *style_value;
 static lv_obj_t *speed_value;
-static lv_obj_t *motion_value;
 
 static int effective_speed(const tinyos_ctx *ctx)
 {
@@ -34,7 +38,6 @@ static void update_values(void)
     tinyos_ctx *ctx = tinyos_ctx_get();
     set_pill_text(style_value, tinyos_wallpaper_name(ctx->settings.wallpaper));
     set_pill_text(speed_value, tinyos_wallpaper_speed_name(ctx->settings.wallpaper_speed));
-    set_pill_text(motion_value, ctx->settings.reduce_motion ? "ON" : "OFF");
 }
 
 static void rebuild_preview(void)
@@ -46,7 +49,7 @@ static void rebuild_preview(void)
         tinyos_wallpaper_destroy(preview_wallpaper);
         preview_wallpaper = NULL;
     }
-    preview_wallpaper = tinyos_wallpaper_create(preview_card, 212, 58,
+    preview_wallpaper = tinyos_wallpaper_create(preview_card, 212, 54,
                                                 ctx->settings.wallpaper,
                                                 effective_speed(ctx), true);
 }
@@ -91,22 +94,6 @@ static void speed_clicked(lv_event_t *event)
     change_speed(1);
 }
 
-static void motion_clicked(lv_event_t *event)
-{
-    (void)event;
-    tinyos_ctx *ctx = tinyos_ctx_get();
-    ctx->settings.reduce_motion = !ctx->settings.reduce_motion;
-    tinyos_settings_save(&ctx->settings, TINYOS_SETTINGS_PATH);
-    refresh_wallpaper();
-}
-
-static void motion_key(lv_event_t *event)
-{
-    uint32_t key = lv_event_get_key(event);
-    if (key == TINYOS_KEY_PREV || key == TINYOS_KEY_NEXT)
-        motion_clicked(event);
-}
-
 static void style_key(lv_event_t *event)
 {
     uint32_t key = lv_event_get_key(event);
@@ -130,17 +117,17 @@ static lv_obj_t *option_row(tinyos_ctx *ctx, lv_obj_t *parent, int y,
                             const char *value, lv_event_cb_t click,
                             lv_event_cb_t key)
 {
-    lv_obj_t *row = tinyos_obj(parent, 14, y, 212, 20);
+    lv_obj_t *row = tinyos_obj(parent, 14, y, 212, 22);
     lv_obj_add_style(row, &tinyos_theme.row, 0);
-    tinyos_icon(row, icon, color, 8, 4, 12);
-    tinyos_label(row, text, &lv_font_montserrat_10, TINYOS_COLOR_TEXT, 28, 4, 90, 12);
-    lv_obj_t *pill = tinyos_obj(row, 130, 1, 60, 18);
+    tinyos_icon(row, icon, color, 8, 4, 14);
+    tinyos_label(row, text, &lv_font_montserrat_12, TINYOS_COLOR_TEXT, 28, 2, 74, 15);
+    lv_obj_t *pill = tinyos_obj(row, 106, 2, 72, 18);
     lv_obj_add_style(pill, &tinyos_theme.pill, 0);
     lv_obj_set_style_bg_color(pill, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
-    lv_obj_t *label = tinyos_label(pill, value, &lv_font_montserrat_8, color,
-                                   0, 5, 60, 10);
+    lv_obj_t *label = tinyos_label(pill, value, &lv_font_montserrat_10, color,
+                                   0, 3, 72, 12);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-    tinyos_icon(row, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, 196, 5, 10);
+    tinyos_icon(row, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, 186, 5, 12);
     tinyos_focus(row);
     tinyos_shell_add_focus(ctx, row);
     lv_obj_add_event_cb(row, click, LV_EVENT_CLICKED, NULL);
@@ -152,26 +139,34 @@ static lv_obj_t *wallpapers_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
     preview_wallpaper = NULL;
 
+    lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
+    lv_obj_add_style(back, &tinyos_theme.pill, 0);
+    lv_obj_set_style_radius(back, 10, 0);
+    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
+    tinyos_focus(back);
+    tinyos_add_click(back, back_cb, NULL);
+    tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
+    lv_obj_center(lv_obj_get_child(back, 0));
     tinyos_label(parent, "Wallpapers", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 14, 0, 212, 24);
-    tinyos_label(parent, "X / Y adjust - B returns", &lv_font_montserrat_8,
-                 TINYOS_COLOR_MUTED, 14, 26, 212, 10);
+                 44, 2, 170, 24);
+    tinyos_label(parent, "Animated backdrop", &lv_font_montserrat_10,
+                 TINYOS_COLOR_MUTED, 44, 25, 180, 12);
 
-    preview_card = tinyos_card(parent, 14, 40, 212, 58);
+    preview_card = tinyos_card(parent, 14, 42, 212, 54);
     lv_obj_set_style_border_width(preview_card, 1, 0);
     lv_obj_set_style_clip_corner(preview_card, true, 0);
 
-    style_value = option_row(ctx, parent, 104, LV_SYMBOL_IMAGE, TINYOS_COLOR_CYAN,
+    style_value = option_row(ctx, parent, 100, LV_SYMBOL_IMAGE, TINYOS_COLOR_CYAN,
                              "Wallpaper", tinyos_wallpaper_name(ctx->settings.wallpaper),
                              style_clicked, style_key);
-    speed_value = option_row(ctx, parent, 126, LV_SYMBOL_LOOP, TINYOS_COLOR_GREEN,
+    speed_value = option_row(ctx, parent, 124, LV_SYMBOL_LOOP, TINYOS_COLOR_GREEN,
                              "Speed", tinyos_wallpaper_speed_name(ctx->settings.wallpaper_speed),
                              speed_clicked, speed_key);
-    motion_value = option_row(ctx, parent, 148, LV_SYMBOL_EYE_CLOSE, TINYOS_COLOR_AMBER,
-                              "Reduce motion", ctx->settings.reduce_motion ? "ON" : "OFF",
-                              motion_clicked, motion_key);
+    tinyos_label(parent, "X / Y adjust     A cycle", &lv_font_montserrat_10,
+                 TINYOS_COLOR_MUTED, 14, 152, 212, 13);
 
     rebuild_preview();
+    tinyos_shell_add_focus(ctx, back);
     return parent;
 }
 

@@ -72,7 +72,7 @@ the only worker thread; it never touches LVGL objects.
 The shell owns:
 
 - a 240 × 240 screen with a clipped animated wallpaper layer;
-- a 26 px status line (time, wordmark, battery icon and percentage);
+- a 26 px status line (time, battery icon and percentage);
 - a 174 px content viewport at y = 30;
 - a floating 28 px navigation pill at y = 207.
 

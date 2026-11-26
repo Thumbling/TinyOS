@@ -1,6 +1,7 @@
 #include "ui/theme.h"
 
 #include <stddef.h>
+#include <string.h>
 
 tinyos_theme_t tinyos_theme;
 
@@ -38,6 +39,15 @@ static const tinyos_theme_definition_t definitions[TINYOS_THEME_COUNT] = {
 };
 
 static bool styles_ready;
+
+/* Focus and press are state changes: animate the ring and the fill, never the
+ * layout. 90 ms sits inside the 80-120 ms focus budget for a 240 px screen. */
+static const lv_style_prop_t ui_transition_props[] = {
+    LV_STYLE_BORDER_COLOR, LV_STYLE_BORDER_WIDTH, LV_STYLE_BORDER_OPA,
+    LV_STYLE_BG_COLOR, LV_STYLE_BG_OPA, LV_STYLE_TEXT_COLOR, 0
+};
+static lv_style_transition_dsc_t ui_transition;
+static bool transition_ready;
 
 uint32_t tinyos_color_mix(uint32_t a, uint32_t b, uint8_t ratio_b)
 {
@@ -86,11 +96,26 @@ static void build_styles(void)
     lv_style_set_shadow_offset_y(&tinyos_theme.tile, 4);
     lv_style_set_pad_all(&tinyos_theme.tile, 0);
 
+    if (!transition_ready) {
+        lv_style_transition_dsc_init(&ui_transition, ui_transition_props,
+                                     lv_anim_path_ease_out, 90, 0, NULL);
+        transition_ready = true;
+    }
+
     style_reset(&tinyos_theme.focus);
     lv_style_set_border_width(&tinyos_theme.focus, 2);
     lv_style_set_border_color(&tinyos_theme.focus, lv_color_hex(TINYOS_COLOR_CYAN));
     lv_style_set_border_opa(&tinyos_theme.focus, LV_OPA_COVER);
     lv_style_set_outline_width(&tinyos_theme.focus, 0);
+    lv_style_set_transition(&tinyos_theme.focus, &ui_transition);
+
+    /* A pressed control flashes to the primary text colour and settles back:
+     * immediate acknowledgement without a scale or a shadow layer. */
+    style_reset(&tinyos_theme.pressed);
+    lv_style_set_border_width(&tinyos_theme.pressed, 2);
+    lv_style_set_border_color(&tinyos_theme.pressed, lv_color_hex(TINYOS_COLOR_TEXT));
+    lv_style_set_border_opa(&tinyos_theme.pressed, LV_OPA_COVER);
+    lv_style_set_transition(&tinyos_theme.pressed, &ui_transition);
 
     style_reset(&tinyos_theme.nav);
     lv_style_set_bg_color(&tinyos_theme.nav, lv_color_hex(TINYOS_COLOR_BG_2));
@@ -103,6 +128,11 @@ static void build_styles(void)
     lv_style_set_shadow_color(&tinyos_theme.nav, lv_color_hex(0x000000));
     lv_style_set_shadow_opa(&tinyos_theme.nav, LV_OPA_30);
     lv_style_set_shadow_offset_y(&tinyos_theme.nav, 4);
+
+    style_reset(&tinyos_theme.nav_item);
+    lv_style_set_bg_opa(&tinyos_theme.nav_item, LV_OPA_TRANSP);
+    lv_style_set_border_width(&tinyos_theme.nav_item, 0);
+    lv_style_set_transition(&tinyos_theme.nav_item, &ui_transition);
 
     style_reset(&tinyos_theme.nav_active);
     lv_style_set_bg_color(&tinyos_theme.nav_active, lv_color_hex(TINYOS_COLOR_SURFACE_2));
@@ -170,6 +200,12 @@ const tinyos_theme_definition_t *tinyos_theme_definition(int index)
         index = 0;
     }
     return &definitions[index];
+}
+
+const char *tinyos_theme_short_name(int index)
+{
+    const char *name = tinyos_theme_name(index);
+    return strcmp(name, "Monochrome") == 0 ? "Mono" : name;
 }
 
 const char *tinyos_theme_name(int index)

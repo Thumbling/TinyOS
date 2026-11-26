@@ -90,15 +90,16 @@ Default sizes:
 
 | Size | Use |
 |---|---|
-| 28 | home wordmark |
-| 24 | about wordmark, hero letter |
-| 20 | screen titles |
-| 16 | system values, card values |
-| 14 | body, status time |
-| 10 | labels, values, secondary copy |
-| 8 | eyebrows, hints, metadata |
+| 28 | splash orb |
+| 24 | about wordmark |
+| 20 | screen titles, greeting |
+| 16 | player title, metric values |
+| 14 | status time and battery percentage, empty-state title, dense numerals |
+| 12 | row titles, card titles |
+| 10 | labels, values, hints, metadata |
 
-No text is smaller than 8 px. Long labels use `LV_LABEL_LONG_MODE_DOTS`; only
+No text is smaller than 10 px; 10 px is reserved for supporting copy that is
+never the only way to identify a control. Long labels use `LV_LABEL_LONG_MODE_DOTS`; only
 deliberate multi-line copy opts into wrapping. Typeface changes rebuild the
 shell and are stored in `/data/tinyos/settings.ini`.
 
@@ -106,66 +107,82 @@ shell and are stored in `/data/tinyos/settings.ini`.
 
 ### Home
 
-A 212 × 94 hero card with greeting, wordmark, two-line tagline, accent CTA and
-a gradient orb. Three 64 × 50 quick tiles (Music, Library, Settings) sit below
-a “QUICK ACCESS” eyebrow. The wallpaper remains visible around the cards but
+A 212 × 88 hero card with the date, greeting, one-line tagline and a gradient
+orb. Three 64 × 44 quick tiles (Music, System, About) sit below a
+“QUICK ACCESS” eyebrow — only destinations the tab bar cannot reach. The wallpaper remains visible around the cards but
 never behind body text without a solid surface.
 
 ### Library
 
-A 2 × 2 grid of 102 × 56 app tiles with a 28 px badge, title and subtitle. The
-focused tile gets a 2 px accent ring. The footer is metadata, not a control.
+A 2 × 2 grid of 102 × 50 app tiles at y = 42 and y = 100 (8 px gutter) with a
+24 px badge, 12 px title and 10 px subtitle. The focused tile gets a 2 px
+accent ring. Tiles carry no chevrons; the whole card is the target.
 
 ### Settings
 
-Seven compact 20 px rows with 1 px gaps: **Appearance**, Brightness, Volume,
-24-hour clock, Performance, About TinyOS and Power off. All seven fit without
-scrolling. Sliders and switches live inline. Power off is red and opens a
-confirmation overlay. Appearance is always the first row so personalisation is
-discoverable.
+Six compact 22 px rows with 2 px gaps and a 9 px radius, starting at y = 28:
+**Appearance**, Brightness, Volume, 24-hour clock, Performance and Power off.
+About lives in the Library and Home quick access, so Settings does not repeat
+it. Sliders, switches and pills share a 198 px right edge; slider tracks are
+88 px wide at x = 110. Sliders and the clock switch focus their whole row, so
+the focus ring never crosses a knob. The theme pill uses the compact theme name
+(for example “Mono” for Monochrome) and never ellipsises. Power off is red and
+opens a 180 × 108 confirmation overlay at (30, 62) with CANCEL and POWER OFF;
+the overlay takes the group focus. Power off is red
+and opens a confirmation overlay. Appearance is always the first row so
+personalisation is discoverable.
 
 ### Appearance
 
-Four 24 px rows: Theme, Wallpaper, Motion and Typeface. Each row shows its
-current value in a compact pill; A opens the corresponding picker, B returns to
-Settings.
+Four 24 px rows with 2 px gaps: Theme, Wallpaper, Motion and Typeface. Each
+row shows its current value in a 72 × 18 pill and a 12 px chevron at x = 186.
+Theme and typeface pills use the compact names (“Mono”, “Grotesk”).
+A back button sits at the top left; A opens the picker, B returns to Settings.
 
 ### Themes
 
-A live 212 × 62 preview card, palette name, `NN / 25` counter and a hint line.
-X/Y or L/R steps through the gallery; A applies immediately and rebuilds the
-UI. The preview never uses the old palette for its sample cards.
+A live 212 × 62 preview card at y = 42, palette name, `NN / 25` counter and a
+hint line. X/Y or L/R steps through the gallery; A applies immediately and
+rebuilds the UI. The preview never uses the old palette for its sample cards.
 
 ### Wallpapers
 
-A 212 × 58 animated preview above three 20 px rows: Wallpaper, Speed and Reduce
-motion. Style and speed cycle on A; X/Y or L/R adjusts the focused row. Changes
-are saved and applied to the shell wallpaper immediately, so the preview and
-the real background never drift apart.
+A 212 × 54 animated preview at y = 42 above two 22 px rows at y = 100 and
+y = 124: Wallpaper and Speed, each with a 72 × 18 pill at x = 106. The hint
+line sits at y = 152. Motion lives in Appearance. Style and speed cycle on A;
+X/Y or L/R adjusts the focused row. Changes are saved and applied to the shell
+wallpaper immediately, so the preview and the real background never drift
+apart.
 
 ### Typeface
 
-Six 20 px rows. Each row renders its name in the UI font and `Aa 012` in the
-candidate family, with a selected marker and check. A applies the family and
+Six 21 px rows. Each row renders its name at 12 px and `Aa 012` in the
+candidate family at 12 px, with a selected marker and check. A applies the family and
 rebuilds the shell.
 
 ### Music
 
-An 84 px album card, vinyl disc, title, artist, format, progress bar, elapsed
-and total time, and three transport buttons. Play is 44 px; previous/next are
-30 px with **6 px gaps** (no overlapping hit areas). X/Y or L/R changes track
-without moving focus. A 700 ms timer updates the
-position only while the screen exists.
+A 60 px album card at (14, 34), vinyl disc, 16 px title at (86, 38), 10 px
+artist at y = 63 and 10 px format at y = 78, progress bar at y = 102, elapsed
+and total time, and three transport buttons. The title is one line in
+`LV_LABEL_LONG_MODE_DOTS`, so only an unusually long file name ends in an
+ellipsis; all fixed interface labels fit without one. Play is 44 px with a
+flat fill; previous/next are 28 px with **6 px gaps** (no overlapping hit
+areas). X/Y or
+L/R changes track without moving focus. The empty state is a 212 × 96 card at
+y = 44 with a centered 40 px note, “No tracks yet”, a 10 px path hint and an
+84 × 20 RESCAN pill; its content keeps 7 px bottom padding. A 700 ms timer
+updates the position only while the screen exists.
 
 ### System
 
-Four 102 × 54 metric cards: CPU, memory, battery and uptime, each with a label,
-large value and note. A back button and build footer complete the screen.
+Four 102 × 56 metric cards: CPU, memory, battery and uptime, each with a 10 px
+label, 16 px value and 10 px note. A back button completes the screen.
 
 ### About
 
-Centered orb, wordmark, codename/version, mission statement and a two-line
-component credit. Back is the only control.
+Centered 42 px orb, 24 px wordmark, codename/version, mission statement and a
+two-line component credit. Back is the only control.
 
 ## Focus and controls
 
@@ -180,17 +197,48 @@ The RG Nano mapping is:
 | X / Y or L / R | previous/next track, preview theme, adjust wallpaper or slider |
 
 Every interactive object is clickable, joins the current `lv_group` and gets a
-2 px accent focus ring. The shell maintains a **back stack** for nested screens:
+2 px accent focus ring. Rows that contain a single control (Appearance,
+sliders, clock, Performance, media transport, navigation) take the ring, so it
+is never clipped by a knob or a background element. A 90 ms style transition
+fades the ring and the pressed fill; nothing moves.
+
+- A scrollable list scrolls the newly focused row into view.
+- The power-off dialog owns a **separate group**: the D-pad cannot reach the
+  screen behind it, B closes the dialog and focus returns to the Power off row.
+  Start closes the dialog before going Home.
+- The selected tab stays lit on detail screens: Settings stays active on
+  Appearance, Themes, Wallpapers and Typeface, Library stays active on Music,
+  System and About. Selected (filled pill) and focused (outline) are distinct
+  treatments. The shell maintains a **back stack** for nested screens:
 Settings → Appearance → Themes → B returns to Appearance, then Settings, then
 Home. Changing tabs clears the stack.
 
 ## Motion
 
-- Screen entry: 200 ms fade + 10 px slide.
-- Staggered content reveal: 240–300 ms.
+Motion confirms a state change; it never delays input or moves the layout.
+
+| Event | Duration | Easing |
+|---|---|---|
+| Focus / press ring and fill | 90 ms | ease-out |
+| Screen entry | 200 ms fade + 10 px slide | ease-out |
+| Card reveal | 260–300 ms, 40 ms stagger | ease-out |
+| Dialog entry | 150 ms fade + 8 px rise | ease-out |
+| Theme step (inner samples) | 140 ms, 5 px settle | ease-out |
+| Slider value | 90 ms | ease-out |
+| Music progress | 450 ms | bar animation |
+
+- Focus changes cross-fade the ring colour; the ring never travels across the
+  screen and never bounces.
+- Pressed is a separate state: a 2 px primary-colour ring over the focused ring,
+  so a held A never hides where the user is.
+- The dialog slides and fades in as one 180 × 108 card; the backdrop itself is
+  static, avoiding a full-screen redraw.
+- The palette preview keeps its card on the grid; only the two samples inside
+  move 5 px when stepping.
 - Wallpapers: slow ping-pong translations, opacity breathing and ring scaling.
-- Speed: Still, Slow, Normal, Fast. **Reduce motion** forces Still while keeping
-  the chosen speed for later.
+- Speed: Still, Slow, Normal, Fast. **Reduce motion** forces Still and disables
+  content reveals, the dialog rise, nudges, slider and progress animation; focus
+  colours still change, just without movement.
 - Animations are stopped when their objects are deleted; no global animation
   timer and no full-screen effects.
 
@@ -202,13 +250,19 @@ Home. Changing tabs clears the stack.
 - Destructive red: at least 4.5:1.
 - No text directly on a moving wallpaper; cards use opaque or near-opaque
   surfaces.
-- Status time, brand and battery are split into separate labels so a typeface
-  without symbol glyphs cannot hide battery state.
+- The status line carries a 14 px time, a 14 px battery icon at (162, 6) and a
+  14 px percentage, split into separate labels so a typeface without symbol
+  glyphs cannot hide battery state. There is no second wordmark.
 
 ## Performance rules
 
-- Native 240 × 240 rendering; partial refresh only.
+- Native 240 × 240 rendering; partial refresh only; `LV_DEF_REFR_PERIOD` is
+  16 ms (60 Hz) with partial draw buffers.
 - Static font bitmaps, no runtime font loading or rasterisation.
+- No large shadows on moving controls; the transport play button is a flat
+  accent fill.
+- Host-simulator check, 300 frames per run: 35 ms with Aurora, 60 ms with
+  Ripple, 19 ms with Reduce Motion (relative host cost, not device FPS).
 - One wallpaper layer behind status/content/navigation; child shapes are clipped.
 - The wallpaper uses a small, fixed number of LVGL objects and stores its
   animation handles so they can be stopped explicitly on deletion.

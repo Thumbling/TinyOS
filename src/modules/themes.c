@@ -8,6 +8,11 @@
 
 #include <stdio.h>
 
+static void back_cb(lv_event_t *event)
+{
+    tinyos_shell_back(tinyos_ctx_get());
+}
+
 static int theme_preview;
 static bool applying;
 static lv_obj_t *preview_card;
@@ -49,6 +54,10 @@ static void step_theme(int direction)
 {
     theme_preview = (theme_preview + direction + TINYOS_THEME_COUNT) % TINYOS_THEME_COUNT;
     update_preview();
+    /* Slide the samples inside the fixed card, not the card itself: the
+     * 14 px grid stays intact while the preview steps. */
+    tinyos_nudge(preview_a, direction > 0 ? 5 : -5);
+    tinyos_nudge(preview_b, direction > 0 ? 5 : -5);
 }
 
 static void apply_theme(void)
@@ -87,26 +96,34 @@ static lv_obj_t *themes_create(tinyos_ctx *ctx, lv_obj_t *parent)
     theme_preview = ctx->settings.theme;
     applying = false;
 
+    lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
+    lv_obj_add_style(back, &tinyos_theme.pill, 0);
+    lv_obj_set_style_radius(back, 10, 0);
+    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
+    tinyos_focus(back);
+    tinyos_add_click(back, back_cb, NULL);
+    tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
+    lv_obj_center(lv_obj_get_child(back, 0));
     tinyos_label(parent, "Themes", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 14, 0, 212, 24);
+                 44, 2, 170, 24);
     tinyos_label(parent, "Live palette preview", &lv_font_montserrat_10,
-                 TINYOS_COLOR_MUTED, 14, 26, 212, 12);
+                 TINYOS_COLOR_MUTED, 44, 25, 180, 12);
 
-    preview_card = tinyos_card(parent, 14, 40, 212, 62);
+    preview_card = tinyos_card(parent, 14, 42, 212, 62);
     lv_obj_set_style_border_color(preview_card, lv_color_hex(TINYOS_COLOR_LINE), 0);
     tinyos_focus(preview_card);
     tinyos_shell_add_focus(ctx, preview_card);
     lv_obj_add_event_cb(preview_card, theme_click_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(preview_card, theme_key_cb, LV_EVENT_KEY, NULL);
 
-    preview_title = tinyos_label(preview_card, "T I N Y O S", &lv_font_montserrat_8,
-                                 TINYOS_COLOR_MUTED, 10, 6, 140, 10);
+    preview_title = tinyos_label(preview_card, "PALETTE PREVIEW", &lv_font_montserrat_10,
+                                 TINYOS_COLOR_MUTED, 10, 4, 140, 12);
 
     preview_a = tinyos_obj(preview_card, 10, 18, 102, 36);
     lv_obj_set_style_radius(preview_a, 10, 0);
     sample_a = tinyos_label(preview_a, "Aa", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
                             6, 1, 40, 24);
-    sample_body = tinyos_label(preview_a, "Body text", &lv_font_montserrat_8,
+    sample_body = tinyos_label(preview_a, "Body text", &lv_font_montserrat_10,
                                TINYOS_COLOR_MUTED, 6, 24, 88, 10);
 
     preview_b = tinyos_obj(preview_card, 118, 18, 84, 36);
@@ -119,14 +136,15 @@ static lv_obj_t *themes_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_set_style_bg_opa(sample_bar, LV_OPA_COVER, 0);
 
     theme_name = tinyos_label(parent, "", &lv_font_montserrat_16, TINYOS_COLOR_TEXT,
-                              14, 108, 150, 24);
+                              14, 110, 150, 24);
     theme_counter = tinyos_label(parent, "", &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
-                                 166, 112, 60, 14);
+                                 166, 114, 60, 14);
     lv_obj_set_style_text_align(theme_counter, LV_TEXT_ALIGN_RIGHT, 0);
-    tinyos_label(parent, "X / Y  PREVIEW     A  APPLY", &lv_font_montserrat_8,
-                 TINYOS_COLOR_MUTED, 14, 154, 212, 10);
+    tinyos_label(parent, "X / Y switch     A apply", &lv_font_montserrat_10,
+                 TINYOS_COLOR_MUTED, 14, 152, 212, 13);
 
     update_preview();
+    tinyos_shell_add_focus(ctx, back);
     return parent;
 }
 
