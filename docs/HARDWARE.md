@@ -62,6 +62,20 @@ These are the first things to check on hardware:
    percentage into `brightness`; verify the lowest level is still readable.
 
 The text source is `buildroot-external/board/rg-nano/firmware/saef,sftc154b.txt`.
+### Frame rate
+
+The fbdev compatibility node is fed through deferred I/O, whose period the
+generic DRM code fixes at `HZ / 20` (50 ms, i.e. 20 Hz). With
+`CONFIG_HZ=100` that is five jiffies per flush. The board patch
+`board/rg-nano/patches/linux/0001-drm-fbdev-dma-flush-once-per-tick.patch`
+changes the period of the shadowed fbdev-dma path (the one a dirty-capable
+framebuffer like panel-mipi-dbi uses) to a single jiffy, i.e. 10 ms. The
+deferred work still merges every write of a jiffy into one SPI transfer, so
+the panel sees at most 100 updates/s; a full 240x240 RGB565 frame needs about
+10 ms at 100 MHz SPI, so the panel is the limit, not the flush timer. The
+kernel logs `tinyos: fbdev-dma deferred IO delay-jiffies=1 (HZ=100)` at probe;
+the acceptance check reads that marker out of the built kernel.
+
 Regenerate the binary with:
 
 ```sh

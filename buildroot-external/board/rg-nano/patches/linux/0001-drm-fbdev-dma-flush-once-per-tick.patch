@@ -1,0 +1,41 @@
+--- a/drivers/gpu/drm/drm_fbdev_dma.c
++++ b/drivers/gpu/drm/drm_fbdev_dma.c
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: MIT
+ 
+ #include <linux/fb.h>
++#include <linux/stringify.h>
+ #include <linux/vmalloc.h>
+ 
+ #include <drm/drm_crtc_helper.h>
+@@ -234,6 +235,20 @@
+ 	return 0;
+ }
+ 
++/*
++ * TinyOS: the RG Nano drives a 240x240 MIPI DBI panel over SPI. The
++ * generic 50 ms deferred-IO period (HZ / 20) caps the visible update
++ * rate at 20 Hz, while a full frame needs about 10 ms on the wire.
++ * Flush once per tick instead; the deferred work still coalesces every
++ * write of a jiffy into one transfer, so a busy writer does not turn
++ * into one SPI burst per store.
++ */
++#define TINYOS_FBDEV_DMA_DEFIO_DELAY_JIFFIES 1
++
++static const char tinyos_fbdev_dma_defio_note[] =
++	"tinyos: fbdev-dma deferred IO delay-jiffies="
++	__stringify(TINYOS_FBDEV_DMA_DEFIO_DELAY_JIFFIES);
++
+ static int drm_fbdev_dma_driver_fbdev_probe_tail_shadowed(struct drm_fb_helper *fb_helper,
+ 							  struct drm_fb_helper_surface_size *sizes)
+ {
+@@ -260,7 +275,8 @@
+ 	info->screen_buffer = screen_buffer;
+ 	info->fix.smem_len = screen_size;
+ 
+-	fb_helper->fbdefio.delay = HZ / 20;
++	fb_helper->fbdefio.delay = TINYOS_FBDEV_DMA_DEFIO_DELAY_JIFFIES;
++	pr_info("%s (HZ=%d)\n", tinyos_fbdev_dma_defio_note, HZ);
+ 	fb_helper->fbdefio.deferred_io = drm_fb_helper_deferred_io;
+ 
+ 	info->fbdefio = &fb_helper->fbdefio;

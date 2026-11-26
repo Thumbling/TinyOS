@@ -21,6 +21,9 @@ BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_TINYOS_PATH)/board/rg-nano/rootfs-overlay"
 BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_TINYOS_PATH)/board/rg-nano/post-build.sh"
 BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_TINYOS_PATH)/board/rg-nano/post-image.sh"
 
+# Board patches (kernel: one-line fbdev deferred-IO period).
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_TINYOS_PATH)/board/rg-nano/patches"
+
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION=y
 BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.12.115"
