@@ -12,7 +12,8 @@ LVGL_LIBS ?= -llvgl
 CONFIG_DIR ?= ../config
 
 override CFLAGS += -std=c11 -Wall -Wextra -Wno-unused-parameter \
-	-D_GNU_SOURCE -D_DEFAULT_SOURCE -DLV_CONF_INCLUDE_SIMPLE -I. -I$(CONFIG_DIR)
+	-D_GNU_SOURCE -D_DEFAULT_SOURCE -DLV_CONF_INCLUDE_SIMPLE -I. -I$(CONFIG_DIR) \
+	-I$(MGBA_DIR)/include
 override LDLIBS += $(LVGL_LIBS) -lasound -lpthread -lm
 
 MGBA_DIR ?= ../third_party/mgba
