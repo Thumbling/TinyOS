@@ -1,5 +1,7 @@
 #include "../src/app.h"
 #include "../src/core/key_repeat.h"
+#include "../src/emulator/emulator.h"
+#include "../src/emulator/rom.h"
 #include "../src/modules/music.h"
 #include "../src/platform.h"
 #include "../src/ui/fonts.h"
@@ -7,19 +9,22 @@
 #include "../src/ui/theme.h"
 #include "../src/ui/wallpaper.h"
 
+#include "layout_audit.h"
 #include "png.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 static void usage(const char *program)
 {
-    fprintf(stderr, "usage: %s [--screen home|apps|settings|music|system|about|"
+    fprintf(stderr, "usage: %s [--screen home|games|settings|music|system|about|"
                     "appearance|themes|wallpapers|typeface] [--out file.png] "
                     "[--theme N] [--font N] [--wallpaper N] [--frames N] "
                     "[--text 100|115|130] [--state normal|empty|loading|error] "
-                    "[--down N] [--enter] [--keytest]\n", program);
+                    "[--down N] [--enter] [--game ROM] [--keytest] "
+                    "[--verify-first-frame] [--layout-audit] [--layout-selftest]\n", program);
 }
 
 static int keytest_clicks;
@@ -96,7 +101,11 @@ int main(int argc, char **argv)
     int downs = 0;
     bool enter = false;
     int frames = 90;
+    const char *game_path = NULL;
     bool keytest = false;
+    bool verify_first_frame = false;
+    bool layout_audit = false;
+    bool layout_selftest = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--screen") == 0 && i + 1 < argc) {
@@ -125,8 +134,16 @@ int main(int argc, char **argv)
             frames = atoi(argv[++i]);
             if (frames < 1)
                 frames = 1;
+        } else if (strcmp(argv[i], "--game") == 0 && i + 1 < argc) {
+            game_path = argv[++i];
         } else if (strcmp(argv[i], "--keytest") == 0) {
             keytest = true;
+        } else if (strcmp(argv[i], "--verify-first-frame") == 0) {
+            verify_first_frame = true;
+        } else if (strcmp(argv[i], "--layout-audit") == 0) {
+            layout_audit = true;
+        } else if (strcmp(argv[i], "--layout-selftest") == 0) {
+            layout_selftest = true;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             usage(argv[0]);
             return 0;
@@ -136,12 +153,48 @@ int main(int argc, char **argv)
         }
     }
 
+    if (verify_first_frame)
+        tinyos_host_set_stale_framebuffer(true);
+
     if (tinyos_app_init() != 0) {
         fprintf(stderr, "failed to initialise TinyOS\n");
         return 1;
     }
 
+    if (verify_first_frame) {
+        uint32_t stale = tinyos_host_framebuffer_stale_count();
+        uint32_t written = tinyos_host_framebuffer_written_count();
+        uint32_t pixels = 240u * 240u;
+        bool pass = stale == 0 && written == pixels;
+        printf("firstframe: %u pixels, %u written, %u stale console pixels: %s\n",
+               pixels, written, stale, pass ? "PASS" : "FAIL");
+        tinyos_app_shutdown();
+        return pass ? 0 : 1;
+    }
+
     tinyos_ctx *ctx = tinyos_ctx_get();
+    if (game_path) {
+        tinyos_rom_entry rom = {0};
+        snprintf(rom.path, sizeof(rom.path), "%s", game_path);
+        const char *dot = strrchr(game_path, '.');
+        if (dot && strcasecmp(dot, ".gba") == 0)
+            rom.system = TINYOS_ROM_GBA;
+        else if (dot && strcasecmp(dot, ".gbc") == 0)
+            rom.system = TINYOS_ROM_GBC;
+        else
+            rom.system = TINYOS_ROM_GB;
+        snprintf(rom.name, sizeof(rom.name), "%s", "Smoke ROM");
+        int game_result = tinyos_emulator_run(&rom);
+        if (tinyos_png_write_rgb565(output, tinyos_host_framebuffer(), 240, 240) != 0) {
+            fprintf(stderr, "failed to write %s\n", output);
+            tinyos_app_shutdown();
+            return 1;
+        }
+        printf("game %s -> %s: %s\n", game_path, output,
+               game_result == 0 ? "ran" : tinyos_emulator_last_error());
+        tinyos_app_shutdown();
+        return game_result == 0 ? 0 : 1;
+    }
     if (theme >= 0) {
         ctx->settings.theme = theme;
         tinyos_theme_apply(theme);
@@ -209,6 +262,12 @@ int main(int argc, char **argv)
     }
     lv_refr_now(ctx->display);
 
+    if (layout_selftest) {
+        int result = tinyos_layout_audit_selftest();
+        tinyos_app_shutdown();
+        return result;
+    }
+
     if (tinyos_png_write_rgb565(output, tinyos_host_framebuffer(), 240, 240) != 0) {
         fprintf(stderr, "failed to write %s\n", output);
         tinyos_app_shutdown();
@@ -216,6 +275,11 @@ int main(int argc, char **argv)
     }
 
     printf("rendered %s -> %s\n", screen, output);
+
+    int audit_result = 0;
+    if (layout_audit)
+        audit_result = tinyos_layout_audit(screen);
+
     tinyos_app_shutdown();
-    return 0;
+    return audit_result;
 }

@@ -9,6 +9,7 @@
 #include "../../platform.h"
 #include "../../core/key_repeat.h"
 #include "../../core/log.h"
+#include "../../emulator/input_map.h"
 
 #include <fcntl.h>
 #include <linux/input.h>
@@ -131,4 +132,82 @@ lv_indev_t *tinyos_input_create(void)
     lv_indev_set_read_cb(input->indev, read_cb);
     lv_indev_set_user_data(input->indev, input);
     return input->indev;
+}
+
+/* Direct game-session input. It opens its own event descriptors so the
+ * emulator can poll at its own cadence without running LVGL timers. */
+static int game_fds[MAX_INPUTS];
+static int game_fd_count;
+static uint32_t game_keys;
+
+/* The table lives in emulator/input_map.c so the host self-test exercises the
+ * same evdev ABI values as the device. */
+_Static_assert(TINYOS_EV_BTN_SOUTH == BTN_SOUTH, "evdev BTN_SOUTH ABI changed");
+_Static_assert(TINYOS_EV_BTN_EAST == BTN_EAST, "evdev BTN_EAST ABI changed");
+_Static_assert(TINYOS_EV_BTN_NORTH == BTN_NORTH, "evdev BTN_NORTH ABI changed");
+_Static_assert(TINYOS_EV_BTN_WEST == BTN_WEST, "evdev BTN_WEST ABI changed");
+_Static_assert(TINYOS_EV_BTN_TL == BTN_TL, "evdev BTN_TL ABI changed");
+_Static_assert(TINYOS_EV_BTN_TR == BTN_TR, "evdev BTN_TR ABI changed");
+_Static_assert(TINYOS_EV_BTN_SELECT == BTN_SELECT, "evdev BTN_SELECT ABI changed");
+_Static_assert(TINYOS_EV_BTN_START == BTN_START, "evdev BTN_START ABI changed");
+_Static_assert(TINYOS_EV_BTN_DPAD_UP == BTN_DPAD_UP, "evdev DPAD_UP ABI changed");
+_Static_assert(TINYOS_EV_BTN_DPAD_DOWN == BTN_DPAD_DOWN, "evdev DPAD_DOWN ABI changed");
+_Static_assert(TINYOS_EV_BTN_DPAD_LEFT == BTN_DPAD_LEFT, "evdev DPAD_LEFT ABI changed");
+_Static_assert(TINYOS_EV_BTN_DPAD_RIGHT == BTN_DPAD_RIGHT, "evdev DPAD_RIGHT ABI changed");
+_Static_assert(TINYOS_EV_KEY_POWER == KEY_POWER, "evdev KEY_POWER ABI changed");
+
+static uint32_t translate_game_key(uint16_t code)
+{
+    return tinyos_game_key_from_evdev(code);
+}
+
+void tinyos_game_input_begin(void)
+{
+    tinyos_game_input_end();
+    game_keys = 0;
+
+    for (int index = 0; index < MAX_EVENT_NODES && game_fd_count < MAX_INPUTS; index++) {
+        char path[64];
+        snprintf(path, sizeof(path), "/dev/input/event%d", index);
+        int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+        if (fd < 0)
+            continue;
+        game_fds[game_fd_count++] = fd;
+    }
+
+    if (game_fd_count == 0)
+        TINYOS_LOGW("game input: no evdev devices found");
+}
+
+uint32_t tinyos_game_input_poll(void)
+{
+    struct input_event event;
+    for (int i = 0; i < game_fd_count; i++) {
+        while (read(game_fds[i], &event, sizeof(event)) == (ssize_t)sizeof(event)) {
+            if (event.type == EV_SYN && event.code == SYN_DROPPED) {
+                /* The kernel queue overflowed; stale pressed bits would make
+                 * the game think a button is still held. Re-sync on release. */
+                game_keys = 0;
+                continue;
+            }
+            if (event.type != EV_KEY)
+                continue;
+            uint32_t key = translate_game_key(event.code);
+            if (key == 0)
+                continue;
+            if (event.value == 1)
+                game_keys |= key;
+            else if (event.value == 0)
+                game_keys &= ~key;
+        }
+    }
+    return game_keys;
+}
+
+void tinyos_game_input_end(void)
+{
+    for (int i = 0; i < game_fd_count; i++)
+        close(game_fds[i]);
+    game_fd_count = 0;
+    game_keys = 0;
 }

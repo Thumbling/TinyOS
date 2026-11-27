@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build simulator and render all screens
         run: make shots HOSTCC=cc AR=ar
+      - name: Run headless emulator self-test
+        run: make emulator-selftest HOSTCC=cc AR=ar
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         with:

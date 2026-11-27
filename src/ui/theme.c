@@ -1,5 +1,7 @@
 #include "ui/theme.h"
 
+#include "layout.h"
+
 #include <stddef.h>
 #include <string.h>
 
@@ -44,6 +46,7 @@ static bool styles_ready;
  * layout. 90 ms sits inside the 80-120 ms focus budget for a 240 px screen. */
 static const lv_style_prop_t ui_transition_props[] = {
     LV_STYLE_BORDER_COLOR, LV_STYLE_BORDER_WIDTH, LV_STYLE_BORDER_OPA,
+    LV_STYLE_OUTLINE_COLOR, LV_STYLE_OUTLINE_WIDTH, LV_STYLE_OUTLINE_OPA,
     LV_STYLE_BG_COLOR, LV_STYLE_BG_OPA, LV_STYLE_TEXT_COLOR, 0
 };
 static lv_style_transition_dsc_t ui_transition;
@@ -103,18 +106,21 @@ static void build_styles(void)
     }
 
     style_reset(&tinyos_theme.focus);
-    lv_style_set_border_width(&tinyos_theme.focus, 2);
-    lv_style_set_border_color(&tinyos_theme.focus, lv_color_hex(TINYOS_COLOR_CYAN));
-    lv_style_set_border_opa(&tinyos_theme.focus, LV_OPA_COVER);
-    lv_style_set_outline_width(&tinyos_theme.focus, 0);
+    /* Focus is an outline, never a border. A border changes the content box,
+     * which shifted a focused row's labels and sliders by two pixels. */
+    lv_style_set_outline_width(&tinyos_theme.focus, TINYOS_FOCUS_RING);
+    lv_style_set_outline_color(&tinyos_theme.focus, lv_color_hex(TINYOS_COLOR_CYAN));
+    lv_style_set_outline_opa(&tinyos_theme.focus, LV_OPA_COVER);
+    lv_style_set_outline_pad(&tinyos_theme.focus, 0);
     lv_style_set_transition(&tinyos_theme.focus, &ui_transition);
 
     /* A pressed control flashes to the primary text colour and settles back:
      * immediate acknowledgement without a scale or a shadow layer. */
     style_reset(&tinyos_theme.pressed);
-    lv_style_set_border_width(&tinyos_theme.pressed, 2);
-    lv_style_set_border_color(&tinyos_theme.pressed, lv_color_hex(TINYOS_COLOR_TEXT));
-    lv_style_set_border_opa(&tinyos_theme.pressed, LV_OPA_COVER);
+    lv_style_set_outline_width(&tinyos_theme.pressed, TINYOS_FOCUS_RING);
+    lv_style_set_outline_color(&tinyos_theme.pressed, lv_color_hex(TINYOS_COLOR_TEXT));
+    lv_style_set_outline_opa(&tinyos_theme.pressed, LV_OPA_COVER);
+    lv_style_set_outline_pad(&tinyos_theme.pressed, 0);
     lv_style_set_transition(&tinyos_theme.pressed, &ui_transition);
 
     style_reset(&tinyos_theme.nav);

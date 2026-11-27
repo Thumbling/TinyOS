@@ -2,6 +2,7 @@
 
 #include "../core/settings.h"
 #include "../ui/fonts.h"
+#include "../ui/layout.h"
 #include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../ui/theme.h"
@@ -28,24 +29,32 @@ static lv_obj_t *appearance_row(tinyos_ctx *ctx, lv_obj_t *parent, const char *i
                                 const char *id)
 {
     bool large = tinyos_large_text();
-    lv_obj_t *row = tinyos_obj(parent, 0, 0, 212, large ? 38 : 24);
+    lv_obj_t *row = tinyos_obj(parent, 0, 0, TINYOS_CONTENT_W,
+                               large ? TINYOS_ROW_H_LARGE : TINYOS_ROW_ROOMY);
     lv_obj_add_style(row, &tinyos_theme.row, 0);
     lv_obj_set_width(row, LV_PCT(100));
-    tinyos_icon(row, icon, accent, 8, large ? 5 : 5, 14);
-    tinyos_label(row, title, &lv_font_montserrat_12, TINYOS_COLOR_TEXT,
-                 28, large ? 0 : 5, large ? 180 : 84, large ? 20 : 15);
+    tinyos_icon(row, icon, accent, TINYOS_ROW_ICON_X, 5, TINYOS_ROW_ICON_SIZE);
+    const lv_font_t *row_font = tinyos_text_scale() >= 130
+                                    ? &lv_font_montserrat_10
+                                    : &lv_font_montserrat_12;
+    tinyos_label(row, title, row_font, TINYOS_COLOR_TEXT, TINYOS_ROW_LABEL_X,
+                 large ? 2 : 5, large ? 180 : 84, large ? 20 : 15);
 
-    lv_obj_t *pill = tinyos_obj(row, large ? 28 : 106, large ? 20 : 3,
-                                large ? 110 : 72, large ? 18 : 18);
+    lv_obj_t *pill = tinyos_obj(row,
+                                large ? TINYOS_PILL_LARGE_X : TINYOS_PILL_X,
+                                large ? TINYOS_PILL_LARGE_Y : 3,
+                                large ? TINYOS_PILL_LARGE_W : TINYOS_PILL_W,
+                                large ? TINYOS_PILL_LARGE_H : 18);
     lv_obj_add_style(pill, &tinyos_theme.pill, 0);
     lv_obj_set_style_bg_color(pill, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
-    lv_obj_t *pill_text = tinyos_label(pill, value, &lv_font_montserrat_10, accent,
-                                       0, large ? 1 : 3, large ? 110 : 72,
-                                       large ? 16 : 12);
+    lv_obj_t *pill_text = tinyos_label(pill, value, &lv_font_montserrat_10,
+                                       TINYOS_COLOR_TEXT, 0, large ? 0 : 3,
+                                       large ? TINYOS_PILL_LARGE_W : TINYOS_PILL_W,
+                                       large ? TINYOS_PILL_LARGE_H : 12);
     lv_obj_set_style_text_align(pill_text, LV_TEXT_ALIGN_CENTER, 0);
 
-    tinyos_icon(row, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, large ? 196 : 186,
-                large ? 21 : 6, 12);
+    tinyos_icon(row, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, TINYOS_CHEVRON_X,
+                large ? TINYOS_CHEVRON_LARGE_Y : 6, TINYOS_CHEVRON_SIZE);
     tinyos_focus(row);
     tinyos_shell_add_focus(ctx, row);
     lv_obj_set_user_data(row, (void *)id);
@@ -73,28 +82,25 @@ static void open_row(lv_event_t *event)
 
 static lv_obj_t *appearance_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
-    lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
-    lv_obj_add_style(back, &tinyos_theme.pill, 0);
-    lv_obj_set_style_radius(back, 10, 0);
-    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
-    tinyos_focus(back);
-    tinyos_add_click(back, back_cb, NULL);
-    tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
-    lv_obj_center(lv_obj_get_child(back, 0));
+    lv_obj_t *back = tinyos_back_button(parent, back_cb);
     bool large = tinyos_large_text();
-    tinyos_label(parent, "Appearance", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 44, 2, 170, 24);
-    if (!large)
-        tinyos_label(parent, "Theme, motion and type", &lv_font_montserrat_10,
-                     TINYOS_COLOR_MUTED, 44, 25, 180, 12);
-
-    lv_obj_t *list = tinyos_obj(parent, 14, large ? 34 : 42, 212, large ? 140 : 132);
+    tinyos_page_title(parent, "Appearance", 0);
+    lv_obj_t *list = tinyos_obj(parent, TINYOS_LIST_X, TINYOS_LIST_Y, TINYOS_LIST_W,
+                               large ? TINYOS_LIST_H_LARGE : TINYOS_LIST_H);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(list, 2, 0);
+    lv_obj_set_style_pad_row(list, TINYOS_ROW_GAP, 0);
     lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_set_style_pad_top(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_bottom(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_left(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_right(list, TINYOS_LIST_PAD, 0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
     lv_obj_set_scrollable(list, true);
-    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_scrollbar_mode(list, large ? LV_SCROLLBAR_MODE_ON : LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_width(list, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list, lv_color_hex(TINYOS_COLOR_MUTED), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_40, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(list, 2, LV_PART_SCROLLBAR);
 
     appearance_row(ctx, list, LV_SYMBOL_SETTINGS, TINYOS_COLOR_CYAN, "Theme",
                    tinyos_theme_short_name(ctx->settings.theme), "themes");

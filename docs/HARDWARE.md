@@ -166,7 +166,38 @@ The board has no accessible UART, so the image reports on itself:
 
 Pull the card and open the FAT `TINYOS_DATA` volume on any PC to read the logs.
 The kernel also keeps a text console on the panel (`console=tty0`), so a boot
-that stops early is visible on the device itself.
+that stops early is visible on the device itself up to the handoff. Immediately
+before starting the UI, `tinyos-run.sh` calls `tinyos-console-handoff.sh`. The helper accepts
+the handoff only after it has **unbound and read-back-verified** every
+framebuffer VT console through `/sys/class/vtconsole`; only then does the run
+script lower printk and stop the cursor. A missing `vtconsole` class, a
+missing/read-only `bind` file, a nameless or unknown VT console, or a node that
+still reads `bind=1` makes the helper fail, and `tinyos-run.sh` writes
+`console: handoff failed; refusing to start UI` to `/data/tinyos.log` and does
+not start the binary. The Linux backend checks the same state again immediately
+before `open(/dev/fb0)`, so even a manual first start cannot bypass the
+handoff; it logs `fbcon handoff not verified; refusing to open /dev/fb0`.
+
+On a successful start `/data/tinyos.log` contains the helper's
+`console: detached ...` line, then `fb0 cleared N mapped bytes before first
+frame`, the framebuffer geometry line, and finally
+`first frame committed: full 240x240 panel`. The app holds
+`/tmp/tinyos-ui.lock` while it runs, so a second UI process exits before it can
+open the display. The display clears all mapped bytes and the app forces a
+synchronous full 240 x 240 refresh after the shell is built. The kernel boots
+with `consoleblank=0` and `vt.global_cursor_default=0` as extra defences.
+After the handoff, use the serial console or the data-partition logs; the panel
+console is intentionally gone.
+
+### Verified where
+
+In-repo tests cover the helper's fake vtconsole variants, source and ARM compile
+ordering, the one-opener/one-mmap audit, the host LVGL 57,600-pixel coverage,
+and the actual portable fbdev clear/blit code. The real vtconsole names and
+`bind` write, the kernel's post-detach printk/VT routing, the physical panel's
+first frame, and the runtime lock on the device still require a rebuilt image
+flashed to RG-Nano hardware. The existing prebuilt images in this checkout do
+not contain these changes.
 
 ## Known unknowns
 
@@ -176,5 +207,10 @@ that stops early is visible on the device itself.
 - Codec gain and speaker pop behaviour at startup.
 - Thermal behaviour under sustained UI/audio load.
 - USB gadget composition and transfer speed.
+- Actual `/sys/class/vtconsole` naming and `bind` behavior of the shipped
+  kernel, and whether a rebuilt image's panel remains free of console output
+  after the handoff.
+- Actual fbdev first-frame appearance and the runtime single-UI lock on a
+  physical RG Nano.
 
 These are tracked in [ROADMAP.md](ROADMAP.md).

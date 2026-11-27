@@ -2,6 +2,7 @@
 
 #include "../core/settings.h"
 #include "../platform.h"
+#include "../ui/layout.h"
 #include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../ui/theme.h"
@@ -20,13 +21,20 @@ static lv_obj_t *settings_row(tinyos_ctx *ctx, lv_obj_t *list, const char *icon,
                               bool focusable)
 {
     bool large = tinyos_large_text();
-    lv_obj_t *row = tinyos_obj(list, 0, 0, 212, large ? 38 : 22);
+    lv_obj_t *row = tinyos_obj(list, 0, 0, TINYOS_CONTENT_W,
+                               large ? TINYOS_ROW_H_LARGE : TINYOS_ROW_H);
     lv_obj_add_style(row, &tinyos_theme.row, 0);
     lv_obj_set_width(row, LV_PCT(100));
-    lv_obj_set_style_radius(row, 9, 0);
-    tinyos_icon(row, icon, icon_color, 8, large ? 5 : 4, 14);
-    tinyos_label(row, text, &lv_font_montserrat_12, text_color, 28, large ? 1 : 2,
-                 large ? 180 : 96, large ? 20 : 15);
+    lv_obj_set_style_radius(row, TINYOS_ROW_RADIUS, 0);
+    tinyos_icon(row, icon, icon_color, TINYOS_ROW_ICON_X, large ? 5 : 3,
+                TINYOS_ROW_ICON_SIZE);
+    /* Both large ramps land on a 14 px label, which leaves the second-line
+     * pill its own line without a descender collision. */
+    const lv_font_t *row_font = tinyos_text_scale() >= 130
+                                    ? &lv_font_montserrat_10
+                                    : &lv_font_montserrat_12;
+    tinyos_label(row, text, row_font, text_color, TINYOS_ROW_LABEL_X,
+                 large ? 2 : 3, large ? 180 : 96, large ? 20 : 15);
     if (focusable) {
         tinyos_focus(row);
         tinyos_shell_add_focus(ctx, row);
@@ -98,9 +106,14 @@ static void appearance_clicked(lv_event_t *event)
     tinyos_shell_show(tinyos_ctx_get(), "appearance");
 }
 
+static void about_clicked(lv_event_t *event)
+{
+    (void)event;
+    tinyos_shell_show(tinyos_ctx_get(), "about");
+}
+
 static lv_group_t *modal_group;
 static lv_obj_t *modal_return;
-
 static void overlay_cancel(lv_event_t *event)
 {
     lv_obj_t *overlay = lv_event_get_user_data(event);
@@ -136,8 +149,10 @@ static void modal_restore_cb(lv_event_t *event)
     }
     if (ctx->input && ctx->group) {
         lv_indev_set_group(ctx->input, ctx->group);
-        if (modal_return && lv_obj_is_valid(modal_return))
+        if (modal_return && lv_obj_is_valid(modal_return)) {
             lv_group_focus_obj(modal_return);
+            lv_obj_add_state(modal_return, LV_STATE_FOCUSED);
+        }
     }
     modal_return = NULL;
 }
@@ -163,6 +178,10 @@ static lv_obj_t *modal_button(lv_obj_t *parent, int x, int width, const char *te
 static void confirm_poweroff(tinyos_ctx *ctx)
 {
     modal_return = ctx->group ? lv_group_get_focused(ctx->group) : NULL;
+    /* The old group is suspended behind the modal; clear its focus paint so a
+     * second cyan ring cannot glow through the dimmed backdrop. */
+    if (modal_return)
+        lv_obj_remove_state(modal_return, LV_STATE_FOCUSED);
 
     lv_obj_t *overlay = tinyos_obj(lv_screen_active(), 0, 0, 240, 240);
     lv_obj_set_style_bg_color(overlay, lv_color_hex(0x000000), 0);
@@ -170,19 +189,19 @@ static void confirm_poweroff(tinyos_ctx *ctx)
     lv_obj_add_event_cb(overlay, modal_restore_cb, LV_EVENT_DELETE, NULL);
 
     bool large = tinyos_large_text();
-    lv_obj_t *card = large ? tinyos_card(overlay, 14, 58, 212, 124)
+    lv_obj_t *card = large ? tinyos_card(overlay, 12, 58, 216, 124)
                            : tinyos_card(overlay, 30, 62, 180, 108);
     tinyos_label(card, "Power off?", &lv_font_montserrat_16, TINYOS_COLOR_TEXT,
-                 14, large ? 10 : 12, large ? 184 : 152, large ? 30 : 20);
+                 14, large ? 10 : 12, large ? 188 : 152, large ? 30 : 20);
     tinyos_label(card, large ? "TinyOS will shut down."
                             : "TinyOS will shut down safely.",
                  &lv_font_montserrat_10, TINYOS_COLOR_MUTED, 14, large ? 42 : 34,
-                 large ? 184 : 152, large ? 20 : 12);
+                 large ? 188 : 152, large ? 20 : 12);
 
-    lv_obj_t *cancel = modal_button(card, 14, large ? 88 : 70, "CANCEL",
+    lv_obj_t *cancel = modal_button(card, 14, large ? 76 : 70, "CANCEL",
                                     TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_TEXT,
                                     overlay_cancel, overlay, overlay);
-    lv_obj_t *power = modal_button(card, large ? 110 : 92, large ? 100 : 74,
+    lv_obj_t *power = modal_button(card, large ? 98 : 92, large ? 104 : 74,
                                    "POWER OFF",
                                    tinyos_color_mix(TINYOS_COLOR_RED,
                                                     TINYOS_COLOR_BG, 150),
@@ -231,10 +250,10 @@ static lv_obj_t *slider_row(tinyos_ctx *ctx, lv_obj_t *list, const char *icon,
     bool large = tinyos_large_text();
     lv_obj_t *row = settings_row(ctx, list, icon, color, text, TINYOS_COLOR_TEXT, true);
     lv_obj_t *slider = lv_slider_create(row);
-    lv_obj_set_pos(slider, large ? 28 : 110, large ? 20 : 3);
+    lv_obj_set_pos(slider, large ? 28 : 110, large ? 21 : 4);
     /* Large rows put the control on line two; it starts below the label's
      * 20 px line box so descenders never touch the track. */
-    lv_obj_set_size(slider, large ? 170 : 88, large ? 14 : 15);
+    lv_obj_set_size(slider, large ? 170 : 88, 14);
     lv_slider_set_range(slider, 0, 100);
     lv_slider_set_value(slider, value, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(slider, lv_color_hex(TINYOS_COLOR_LINE), LV_PART_MAIN);
@@ -258,28 +277,46 @@ static lv_obj_t *settings_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
     bool large = tinyos_large_text();
     tinyos_label(parent, "Settings", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 14, 2, 212, 24);
+                 TINYOS_CONTENT_X, TINYOS_TITLE_Y, TINYOS_CONTENT_W, TINYOS_TITLE_H);
 
-    lv_obj_t *list = tinyos_obj(parent, 14, large ? 34 : 28, 212, large ? 140 : 142);
+    lv_obj_t *list = tinyos_obj(parent, TINYOS_LIST_X, TINYOS_LIST_Y, TINYOS_LIST_W,
+                               large ? TINYOS_LIST_H_LARGE : TINYOS_LIST_H);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(list, 2, 0);
+    lv_obj_set_style_pad_row(list, TINYOS_ROW_GAP, 0);
     lv_obj_set_style_pad_all(list, 0, 0);
+    /* The wrapper is two pixels wider than the content column on each side,
+     * so the outline focus ring can paint into that gutter and every foreground
+     * object stays on the same 212 px grid. */
+    lv_obj_set_style_pad_top(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_bottom(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_left(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_right(list, TINYOS_LIST_PAD, 0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_scrollbar_mode(list, large ? LV_SCROLLBAR_MODE_ON : LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_width(list, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list, lv_color_hex(TINYOS_COLOR_MUTED), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_40, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(list, 2, LV_PART_SCROLLBAR);
     lv_obj_set_scrollable(list, true);
 
     lv_obj_t *appearance = settings_row(ctx, list, LV_SYMBOL_SETTINGS, TINYOS_COLOR_CYAN,
                                        "Appearance", TINYOS_COLOR_TEXT, true);
-    lv_obj_t *theme_pill = tinyos_obj(appearance, large ? 28 : 106, large ? 20 : 2,
-                                      large ? 110 : 72, large ? 18 : 17);
+    lv_obj_t *theme_pill = tinyos_obj(appearance,
+                                      large ? TINYOS_PILL_LARGE_X : TINYOS_PILL_X,
+                                      large ? TINYOS_PILL_LARGE_Y : TINYOS_PILL_Y,
+                                      large ? TINYOS_PILL_LARGE_W : TINYOS_PILL_W,
+                                      large ? TINYOS_PILL_LARGE_H : TINYOS_PILL_H);
     lv_obj_add_style(theme_pill, &tinyos_theme.pill, 0);
     lv_obj_set_style_bg_color(theme_pill, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
     lv_obj_t *theme_label = tinyos_label(theme_pill, tinyos_theme_short_name(ctx->settings.theme),
-                                         &lv_font_montserrat_10, TINYOS_COLOR_CYAN,
-                                         0, 2, large ? 110 : 72, large ? 14 : 13);
+                                         &lv_font_montserrat_10, TINYOS_COLOR_TEXT,
+                                         0, large ? 0 : TINYOS_PILL_TEXT_Y,
+                                         large ? TINYOS_PILL_LARGE_W : TINYOS_PILL_W,
+                                         large ? TINYOS_PILL_LARGE_H : TINYOS_PILL_TEXT_H);
     lv_obj_set_style_text_align(theme_label, LV_TEXT_ALIGN_CENTER, 0);
-    tinyos_icon(appearance, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, large ? 196 : 186,
-                large ? 21 : 5, 12);
+    tinyos_icon(appearance, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, TINYOS_CHEVRON_X,
+                large ? TINYOS_CHEVRON_LARGE_Y : TINYOS_CHEVRON_Y,
+                TINYOS_CHEVRON_SIZE);
     lv_obj_add_event_cb(appearance, appearance_clicked, LV_EVENT_CLICKED, NULL);
 
     slider_row(ctx, list, LV_SYMBOL_EYE_OPEN, TINYOS_COLOR_CYAN, "Brightness",
@@ -290,8 +327,8 @@ static lv_obj_t *settings_create(tinyos_ctx *ctx, lv_obj_t *parent)
     lv_obj_t *clock_row = settings_row(ctx, list, LV_SYMBOL_LOOP, TINYOS_COLOR_GREEN,
                                        "24-hour clock", TINYOS_COLOR_TEXT, true);
     lv_obj_t *sw = lv_switch_create(clock_row);
-    lv_obj_set_pos(sw, large ? 28 : 164, large ? 20 : 3);
-    lv_obj_set_size(sw, large ? 40 : 34, large ? 18 : 15);
+    lv_obj_set_pos(sw, 158, large ? 20 : 2);
+    lv_obj_set_size(sw, 40, large ? 18 : 17);
     if (ctx->settings.clock_24h)
         lv_obj_add_state(sw, LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(sw, lv_color_hex(TINYOS_COLOR_LINE), LV_PART_MAIN);
@@ -301,22 +338,43 @@ static lv_obj_t *settings_create(tinyos_ctx *ctx, lv_obj_t *parent)
 
     lv_obj_t *perf_row = settings_row(ctx, list, LV_SYMBOL_BARS, TINYOS_COLOR_AMBER,
                                       "Performance", TINYOS_COLOR_TEXT, false);
-    lv_obj_t *pill = tinyos_obj(perf_row, large ? 28 : 106, large ? 20 : 2,
-                                large ? 110 : 72, large ? 18 : 17);
+    lv_obj_t *pill = tinyos_obj(perf_row,
+                                large ? TINYOS_PILL_LARGE_X : TINYOS_PILL_X,
+                                large ? TINYOS_PILL_LARGE_Y : TINYOS_PILL_Y,
+                                large ? TINYOS_PILL_LARGE_W : TINYOS_PILL_W,
+                                large ? TINYOS_PILL_LARGE_H : TINYOS_PILL_H);
     lv_obj_add_style(pill, &tinyos_theme.pill, 0);
     lv_obj_set_style_bg_color(pill, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
     static const char *perf_names[] = { "Saver", "Balanced", "Turbo" };
     lv_obj_t *perf_label = tinyos_label(pill, perf_names[ctx->settings.performance],
-                                        &lv_font_montserrat_10, TINYOS_COLOR_AMBER,
-                                        0, 2, large ? 110 : 72, large ? 14 : 13);
+                                        &lv_font_montserrat_10, TINYOS_COLOR_TEXT,
+                                        0, large ? 0 : TINYOS_PILL_TEXT_Y,
+                                        large ? TINYOS_PILL_LARGE_W : TINYOS_PILL_W,
+                                        large ? TINYOS_PILL_LARGE_H : TINYOS_PILL_TEXT_H);
     lv_obj_set_style_text_align(perf_label, LV_TEXT_ALIGN_CENTER, 0);
+    tinyos_icon(perf_row, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, TINYOS_CHEVRON_X,
+                large ? TINYOS_CHEVRON_LARGE_Y : TINYOS_CHEVRON_Y,
+                TINYOS_CHEVRON_SIZE);
     tinyos_focus(perf_row);
     tinyos_shell_add_focus(ctx, perf_row);
     lv_obj_add_event_cb(perf_row, performance_clicked, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *power = settings_row(ctx, list, LV_SYMBOL_POWER, TINYOS_COLOR_RED,
                                    "Power off", TINYOS_COLOR_RED, true);
+    if (large) {
+        /* This row has no second line, so centre its icon and label in the
+         * 42 px box instead of leaving them on the upper line. */
+        lv_obj_set_pos(lv_obj_get_child(power, 0), 8, 14);
+        lv_obj_set_pos(lv_obj_get_child(power, 1), 28, 11);
+    }
     lv_obj_add_event_cb(power, power_clicked, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *about = settings_row(ctx, list, LV_SYMBOL_FILE, TINYOS_COLOR_VIOLET,
+                                   "About TinyOS", TINYOS_COLOR_TEXT, true);
+    tinyos_icon(about, LV_SYMBOL_RIGHT, TINYOS_COLOR_DIM, TINYOS_CHEVRON_X,
+                large ? TINYOS_CHEVRON_LARGE_Y : TINYOS_CHEVRON_Y,
+                TINYOS_CHEVRON_SIZE);
+    lv_obj_add_event_cb(about, about_clicked, LV_EVENT_CLICKED, NULL);
 
     return parent;
 }

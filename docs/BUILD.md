@@ -16,9 +16,15 @@ On Windows, the repository can be built with Zig's C compiler and GNU make:
 make shots HOSTCC="/path/to/zig cc" AR="/path/to/zig ar"
 ```
 
-The simulator compiles the same `src/app.c`, `src/core`, `src/ui`,
-`src/modules` and host platform shims as the firmware. It writes 240 × 240 PNGs,
-so visual review does not need a device.
+The simulator compiles the same `src/app.c`, `src/core`, `src/emulator`,
+`src/ui`, `src/modules` and host platform shims as the firmware, together with
+both mGBA cores. It writes 240 × 240 PNGs, so visual review does not need a
+device. A bounded game smoke run is available without a ROM in the repository:
+
+```sh
+TINYOS_SIM_GAME_FRAMES=2 ./build/tinyos-sim \
+  --game build/roms/gba/your-test.gba --out build/game.png
+```
 
 ## Firmware image (Linux)
 
@@ -65,8 +71,16 @@ make -C build/buildroot-2025.02.3 \
 | Linux | 6.12.115 | kernel.org |
 | U-Boot | 2025.10 | denx.de |
 | Buildroot | 2025.02.3 | buildroot.org |
-| LVGL | 9.6.0 | GitHub |
+| LVGL | 9.6.0 | vendored, `third_party/lvgl` |
+| mGBA | 0.10.5 | vendored, `third_party/mgba` (MPL-2.0) |
 | TinyOS | local | `src/` |
+
+The mGBA core is built directly by the TinyOS Makefiles from
+`third_party/mgba/sources.mk`, with both `M_CORE_GBA` and `M_CORE_GB` enabled.
+There is no CMake dependency at build time. Buildroot's TinyOS package receives
+the source directory through `MGBA_DIR`; the resulting static archive is linked
+into `/usr/bin/tinyos`. The core uses mGBA's software renderer, HLE BIOS and
+in-emulator save data, so no external BIOS or ROM is installed.
 
 The kernel uses `sunxi_defconfig` plus
 `buildroot-external/board/rg-nano/linux.fragment`. The panel init blob is copied
@@ -95,8 +109,14 @@ Balena Etcher, Raspberry Pi Imager or Rufus can also write the `.img` (not the
 ## Serial console
 
 Connect USB-C data to the host and open the UART at **115200 8N1**. The rescue
-getty runs on `ttyS0`; the TinyOS application runs from inittab and logs to the
-console.
+getty runs on `ttyS0`; the UI is started from inittab by `tinyos-run.sh` and
+logs to `/data/tinyos.log` (or `/tmp/tinyos.log`). Before the UI starts, the
+script unbinds the panel's framebuffer console so fbcon cannot paint over the
+GUI; a failed or unprovable handoff writes
+`console: handoff failed; refusing to start UI` and does not execute the UI.
+The app repeats the check immediately before opening `/dev/fb0`, and its
+`/tmp/tinyos-ui.lock` record lock refuses a second UI process. The serial
+console stays available.
 
 Useful checks:
 
@@ -109,8 +129,44 @@ amixer -c 0 contents
 tinyos
 ```
 
-`tinyos` starts a second UI instance; stop the inittab respawn or use it only
-for a quick check. The production instance is started automatically.
+`tinyos` attempts a second UI instance, but the app's `/tmp/tinyos-ui.lock`
+record lock makes it exit while the production instance owns the panel. A
+manual *first* start also runs the backend's own fbcon check; if the handoff
+was not performed it refuses with
+`fbcon handoff not verified; refusing to open /dev/fb0`. Stop the inittab
+respawn and stop the running UI first for a manual check. The production
+instance is started automatically.
+
+## Handoff and first-frame proofs
+
+```sh
+sh tests/console-handoff.sh
+sh tests/framebuffer-ownership.sh
+ZIG="/path/to/zig" sh tests/fbdev-blit.sh
+./build/tinyos-sim --verify-first-frame
+./build/tinyos-sim --keytest --screen home
+```
+
+The first script exercises the framebuffer-console detach against dummy-only,
+frame-buffer, fbcon, `FBCon`, `framebuffer`, already-detached, missing-bind,
+missing-name, unknown, missing-class and fbcon-without-vtconsole trees. The
+second asserts the one-opener/one-mmap, app-side fbcon guard, instance-lock,
+first-frame and handoff-before-exec invariants. `fbdev-blit.sh` compiles and
+runs the actual `fbdev_blit.c` clear/copy implementation with 32-bpp XRGB and
+16-bpp RGB565 mappings. The simulator command seeds the host framebuffer with a
+two-colour stale-console pattern before `tinyos_app_init()` and requires every
+one of the 57,600 pixels to be written by the forced initial full refresh. It
+must print:
+
+```text
+fbdev first frame: clear + 57600-pixel blit, 32/16 bpp: PASS
+firstframe: 57600 pixels, 57600 written, 0 stale console pixels: PASS
+keytest: held A -> 1 click / 1 event, d-pad repeats 3, after release 0: PASS
+```
+
+These are in-repo proofs. They do not validate the actual `/sys/class/vtconsole`
+names, the real kernel `bind` write, the physical panel, or printk routing after
+the handoff. Those require a rebuilt image and an RG Nano.
 
 ## Updating
 

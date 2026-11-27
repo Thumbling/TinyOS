@@ -4,7 +4,7 @@
 
 static const tinyos_module *modules[] = {
     &tinyos_module_home,
-    &tinyos_module_apps,
+    &tinyos_module_games,
     &tinyos_module_music,
     &tinyos_module_settings,
     &tinyos_module_system,

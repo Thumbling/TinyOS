@@ -5,6 +5,9 @@
 - Independent TinyOS repository, MIT-licensed original code.
 - Custom LVGL 9.6 shell, 25 runtime palettes, 10 animated wallpapers,
   6 typefaces and ten screens.
+- Game Boy, Game Boy Color and Game Boy Advance through the vendored
+  mGBA 0.10.5 core, with direct RGB565 fbdev output, ALSA audio, evdev input
+  and `.sav` battery saves beside each ROM.
 - Host simulator with PNG output for every screen.
 - Linux 6.12 LTS platform backends: fbdev, evdev, AXP209/sysfs, ALSA WAV.
 - Buildroot 2025.02.3 external tree with LVGL and TinyOS packages.
@@ -22,8 +25,13 @@ These are ordered by risk, not by visible feature value.
 2. **Buttons** — confirm pcal6416 key codes and focus order on real hardware.
 3. **Audio** — check card creation, PF6 amplifier enable, mixer range and pop.
 4. **Power** — validate AXP209 capacity/charging, power key and shutdown.
-5. **Storage** — confirm boot from SD, `/data` mount and settings persistence.
-6. **Thermals** — run the UI and audio for 30 minutes and record temperature.
+5. **Storage** — confirm boot from SD, `/data` mount, settings persistence and
+   ROM/save access under `/data/roms`.
+6. **Emulation** — measure GBA and GBC frame times on the V3s, verify audio
+   clock/pitch, GBA L/R, save reload and that the X + Y chord is reliable under
+   long games. Add a measured frame-skip policy only if a title misses 60 Hz.
+7. **Thermals** — run the UI, audio and an emulator for 30 minutes and record
+   temperature.
 
 ## Then: polish
 

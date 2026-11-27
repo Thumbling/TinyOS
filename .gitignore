@@ -3,6 +3,7 @@ build/
 output/
 dl/
 src/tinyos
+tinyos-rg-nano.img*
 
 # object files and vendored source archives
 *.o

@@ -17,12 +17,12 @@ Linux 6.12 LTS
     │ root=/dev/mmcblk0p2
     ▼
 BusyBox init
-    │ /etc/inittab
+    │ /etc/inittab → tinyos-run.sh (detaches fbcon)
     ▼
 /usr/bin/tinyos
     │ LVGL shell
     ▼
-Home / Library / Settings / Music / System / About / Appearance / Themes / Wallpapers / Typeface
+Home / Games / Settings / Music / System / About / Appearance / Themes / Wallpapers / Typeface
 ```
 
 The panel init firmware is embedded in the kernel image so the display can be
@@ -32,7 +32,9 @@ probed before the root filesystem is mounted.
 
 ```text
 ┌────────────────────────────────────────────┐
-│ modules/   Home Apps Settings Music …      │  screens and interactions
+│ modules/   Home Games Settings Music …     │  screens and interactions
+├────────────────────────────────────────────┤
+│ emulator/  ROM scan + mGBA session         │  direct game loop
 ├────────────────────────────────────────────┤
 │   ui/        shell, theme, widgets, fonts,    │  navigation, focus, visuals,
              wallpaper                      │  animated background
@@ -43,7 +45,7 @@ probed before the root filesystem is mounted.
 ├────────────────────────────────────────────┤
 │ platform/  host | linux                    │  display, input, power, audio
 ├────────────────────────────────────────────┤
-│ LVGL 9.6 / Linux / ALSA / libc             │  upstream stack
+│ LVGL 9.6 / mGBA 0.10.5 / ALSA / Linux      │  upstream stack
 └────────────────────────────────────────────┘
 ```
 
@@ -66,6 +68,29 @@ UI builds and renders without a V3s.
 The loop is deliberately simple: LVGL owns timers, animations and input
 processing. There is no busy-wait and no second UI thread. The audio player is
 the only worker thread; it never touches LVGL objects.
+
+## Emulator session
+
+Games is the only module that deliberately leaves the LVGL event path. After a
+ROM is selected, `tinyos_emulator_run()`:
+
+1. creates an mGBA core for GBA or GB/GBC and loads the file from `/data/roms`;
+2. asks the core for its post-load video dimensions and allocates a software
+   frame buffer;
+3. stops the WAV player, switches the CPU governor hint to performance, opens a
+   direct evdev input set and an ALSA PCM stream;
+4. runs one mGBA frame, converts the core's `0x00BBGGRR` pixels to RGB565 and
+   writes a 240 × 240 image through `tinyos_game_present_rgb565()` — for GBA a
+   native 240 × 160 image with 40 px bars, for GB/GBC a 3:2 nearest-neighbour
+   scale to 240 × 216 with 12 px bars;
+5. drains the core's stereo audio into the PCM stream and paces to 59.7 Hz;
+6. on X + Y (or Power), writes battery save data beside the ROM, closes the
+   devices and returns; the Games module then rebuilds the shell and forces a
+   full refresh before LVGL resumes.
+
+The emulator does not render through LVGL, and the LVGL partial buffers are not
+used during a game. That keeps the frame path deterministic and avoids a
+partial-refresh cycle for every emulated frame.
 
 ## Shell and focus model
 
@@ -116,14 +141,55 @@ entry; see [MODULES.md](MODULES.md).
 
 `display_fbdev.c`:
 
+- first checks `/sys/class/vtconsole` and refuses to open `/dev/fb0` unless every
+  framebuffer VT console is already `bind=0`; this also protects a first manual
+  start that bypassed `tinyos-run.sh`;
 - opens `/dev/fb0` with a short retry loop (the DRM probe can win the race);
 - queries `FBIOGET_VSCREENINFO` / `FBIOGET_FSCREENINFO`;
-- mmaps the framebuffer and clears it;
+- validates that the mapping's stride and size reach every visible row;
+- mmaps the framebuffer and clears every mapped byte before creating LVGL;
 - creates an RGB565 LVGL display with two partial buffers;
 - copies dirty rectangles for 16 bpp, or expands to XRGB8888 for 32 bpp.
 
+The clear and rectangle copy live in `fbdev_blit.c`, which has no LVGL or Linux
+headers. The real backend uses that code directly, so the host
+`tests/fbdev-blit.sh` exercises the production pixel path rather than a copy of
+it. A successful start logs `fb0 cleared N mapped bytes before first frame`.
+
 The panel's DRM fbdev has deferred dirty-page handling, so no explicit vsync
 ioctl is needed. The backend logs geometry and depth at startup.
+
+The board starts the UI through `tinyos-run.sh`, not directly from inittab. It
+first runs `tinyos-console-handoff.sh`, which accepts `bind=0` only after
+reading it back from every framebuffer VT console; a missing, read-only,
+unknown, or still-bound node aborts the start before `exec`. This matters
+because `fbcon` shares `/dev/fb0` with LVGL: a cursor blink or a late kernel
+message can paint terminal cells over the UI. A successful handoff logs the
+`console: detached ...` line. On failure, the helper's reason is followed by
+`console: handoff failed; refusing to start UI`; the binary is not executed, so
+no UI frame can be painted. The kernel console is then on the dummy VT; the
+serial console remains available, and after the handoff the panel belongs to
+TinyOS on the in-repo boot path.
+
+`app.c` additionally takes a `/tmp/tinyos-ui.lock` record lock before opening
+the display, so a second UI cannot become another writer. The Linux backend
+repeats the `fbcon` check immediately before `open(/dev/fb0)`; a manual first
+start that bypasses the run script therefore fails closed with
+`fbcon handoff not verified; refusing to open /dev/fb0`. The display validates
+the visible geometry and clears all mapped framebuffer bytes before LVGL's
+first object. After `tinyos_shell_init()` the app invalidates the full active
+screen and calls `lv_refr_now()` synchronously, so the first rendered frame
+covers all 240 x 240 pixels rather than relying on a first partial-refresh
+rectangle. It then logs `first frame committed: full 240x240 panel`.
+
+### Verification boundary
+
+In-repo checks prove the shell handoff variants, the source-level one-opener
+and ordering invariants, the host LVGL write coverage, and the fbdev clear/blit
+implementation. They do not prove the actual kernel's vtconsole names, its
+`bind` semantics, the physical panel, or printk routing after detaching `fbcon`.
+Those require a rebuilt image on real RG-Nano hardware. See [BUILD.md](BUILD.md)
+and [HARDWARE.md](HARDWARE.md).
 
 ## Input
 

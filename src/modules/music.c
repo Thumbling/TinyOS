@@ -3,6 +3,7 @@
 #include "music.h"
 
 #include "../platform.h"
+#include "../ui/layout.h"
 #include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../ui/theme.h"
@@ -186,7 +187,7 @@ static lv_obj_t *state_button(lv_obj_t *parent, int x, int y, int width,
     tinyos_add_click(button, callback, data);
     lv_obj_t *label = tinyos_label(button, text, &lv_font_montserrat_10,
                                    TINYOS_COLOR_CYAN, 0, large ? 4 : 6, width,
-                                   large ? 15 : 10);
+                                   large ? 15 : 11);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     return button;
 }
@@ -197,7 +198,8 @@ static lv_obj_t *state_card(tinyos_ctx *ctx, lv_obj_t *parent, const char *title
 {
     (void)ctx;
     bool large = tinyos_large_text();
-    lv_obj_t *card = tinyos_card(parent, 14, large ? 40 : 44, 212, 96);
+    lv_obj_t *card = tinyos_card(parent, TINYOS_CONTENT_X, large ? 40 : 44,
+                                 TINYOS_CONTENT_W, 96);
     tinyos_gradient(card, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
     tinyos_icon(card, symbol, accent, 88, 12, 36);
 
@@ -220,11 +222,8 @@ static lv_obj_t *music_create(tinyos_ctx *ctx, lv_obj_t *parent)
     view->ctx = ctx;
     bool large = tinyos_large_text();
 
-    lv_obj_t *back = icon_button(parent, 10, 2, 26, large ? 18 : 16, LV_SYMBOL_LEFT,
-                                 TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_MUTED,
-                                 back_cb, view);
-    tinyos_label(parent, "Music", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 44, 2, 120, 24);
+    lv_obj_t *back = tinyos_back_button(parent, back_cb);
+    tinyos_page_title(parent, "Music", 112);
     int count = ctx->audio ? tinyos_audio_count(ctx->audio) : 0;
     char counter[32];
     snprintf(counter, sizeof(counter), "%d track%s", count, count == 1 ? "" : "s");
@@ -241,6 +240,11 @@ static lv_obj_t *music_create(tinyos_ctx *ctx, lv_obj_t *parent)
         else
             state = count == 0 ? TINYOS_MUSIC_EMPTY : TINYOS_MUSIC_NORMAL;
     }
+
+    /* A count is only meaningful for the normal player; in a loading, empty
+     * or error view it would contradict the central message. */
+    if (state != TINYOS_MUSIC_NORMAL)
+        lv_label_set_text(count_label, "");
 
     if (state == TINYOS_MUSIC_LOADING) {
         state_card(ctx, parent, "Scanning music", "Reading /data/music",
@@ -302,7 +306,7 @@ static lv_obj_t *build_view(tinyos_ctx *ctx, lv_obj_t *parent, music_view *view)
 {
     bool large = tinyos_large_text();
     int art_size = large ? 52 : 60;
-    int art_x = large ? 10 : 14;
+    int art_x = TINYOS_CONTENT_X;
     int art_y = large ? 38 : 34;
     lv_obj_t *art = tinyos_card(parent, art_x, art_y, art_size, art_size);
     tinyos_gradient(art, TINYOS_COLOR_CYAN_DEEP, TINYOS_COLOR_VIOLET);
@@ -328,8 +332,8 @@ static lv_obj_t *build_view(tinyos_ctx *ctx, lv_obj_t *parent, music_view *view)
                                 large ? 80 : 78, large ? 154 : 140, large ? 18 : 13);
 
     view->bar = lv_bar_create(parent);
-    lv_obj_set_pos(view->bar, 14, large ? 104 : 102);
-    lv_obj_set_size(view->bar, 212, large ? 5 : 4);
+    lv_obj_set_pos(view->bar, TINYOS_CONTENT_X, large ? 104 : 102);
+    lv_obj_set_size(view->bar, TINYOS_CONTENT_W, large ? 5 : 4);
     lv_bar_set_range(view->bar, 0, 1000);
     lv_obj_set_style_bg_color(view->bar, lv_color_hex(TINYOS_COLOR_LINE), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(view->bar, LV_OPA_COVER, LV_PART_MAIN);
@@ -341,16 +345,16 @@ static lv_obj_t *build_view(tinyos_ctx *ctx, lv_obj_t *parent, music_view *view)
     lv_obj_set_style_anim_duration(view->bar, 450, 0);
 
     view->position = tinyos_label(parent, "0:00", &lv_font_montserrat_10,
-                                  TINYOS_COLOR_MUTED, 14, large ? 112 : 108, 60,
-                                  large ? 18 : 12);
+                                  TINYOS_COLOR_MUTED, TINYOS_CONTENT_X,
+                                  large ? 112 : 108, 60, large ? 18 : 12);
     view->duration = tinyos_label(parent, "0:00", &lv_font_montserrat_10,
                                   TINYOS_COLOR_MUTED, 166, large ? 112 : 108, 60,
                                   large ? 18 : 12);
     lv_obj_set_style_text_align(view->duration, LV_TEXT_ALIGN_RIGHT, 0);
 
-    int prev_y = large ? 136 : 132;
+    int prev_y = 132;
     int play_size = large ? 46 : 44;
-    int play_y = large ? 128 : 124;
+    int play_y = 124;
     lv_obj_t *prev = icon_button(parent, large ? 62 : 66, prev_y, large ? 30 : 28,
                                  large ? 16 : 16, LV_SYMBOL_PREV,
                                  TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_MUTED,
@@ -365,6 +369,9 @@ static lv_obj_t *build_view(tinyos_ctx *ctx, lv_obj_t *parent, music_view *view)
 
     view->play_icon = lv_obj_get_child(play, 0);
 
+    /* The play button is accent-filled, so the normal accent focus border is
+     * invisible. Give this one a foreground-coloured ring. */
+    tinyos_focus_on_accent(play);
     tinyos_shell_add_focus(ctx, play);
     tinyos_shell_add_focus(ctx, prev);
     tinyos_shell_add_focus(ctx, next);

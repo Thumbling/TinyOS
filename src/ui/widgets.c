@@ -1,5 +1,6 @@
 #include "widgets.h"
 
+#include "layout.h"
 #include "scale.h"
 
 #include "fonts.h"
@@ -63,8 +64,8 @@ lv_obj_t *tinyos_label(lv_obj_t *parent, const char *text, const lv_font_t *font
     lv_obj_set_pos(label, x, y);
     const lv_font_t *scaled = tinyos_font_scale(font);
     lv_obj_set_style_text_font(label, scaled, 0);
-    if (tinyos_large_text() && height > 0) {
-        int line = lv_font_get_line_height(scaled) + 1;
+    if (height > 0) {
+        int line = lv_font_get_line_height(scaled);
         if (height < line) {
             height = line;
             if (width > 0)
@@ -83,31 +84,64 @@ lv_obj_t *tinyos_label(lv_obj_t *parent, const char *text, const lv_font_t *font
 lv_obj_t *tinyos_icon(lv_obj_t *parent, const char *symbol, uint32_t color,
                       int x, int y, int size)
 {
-    /* The glyph has to fit the box it is given: a 16 px font in a 10 px box
-     * is exactly the clipped arrow the design review found. Pick the font
-     * that survives the box and centre it inside, so a mark never loses its
-     * tips no matter which call site places it. */
-    const lv_font_t *font = &lv_font_montserrat_10;
-    if (size >= 26)
-        font = &lv_font_montserrat_28;
-    else if (size >= 18)
-        font = &lv_font_montserrat_20;
-    else if (size >= 14)
-        font = &lv_font_montserrat_16;
-    else if (size >= 12)
-        font = &lv_font_montserrat_12;
+    /* Pick the largest cut whose line box and glyph width both fit the square
+     * the caller gave us. Measuring only the nominal size let a 28 px font
+     * (30 px line box) sit in a 26 px back button and a 20 px font sit in a
+     * 20 px icon; both clipped at the bottom. */
+    static const lv_font_t *const cuts[] = {
+        &lv_font_montserrat_8,  &lv_font_montserrat_10, &lv_font_montserrat_12,
+        &lv_font_montserrat_14, &lv_font_montserrat_16, &lv_font_montserrat_20,
+        &lv_font_montserrat_24, &lv_font_montserrat_28,
+    };
+    const lv_font_t *font = cuts[0];
+    for (int i = (int)(sizeof(cuts) / sizeof(cuts[0])) - 1; i >= 0; i--) {
+        lv_point_t measured;
+        const char *text = symbol ? symbol : "";
+        if (lv_font_get_line_height(cuts[i]) > size)
+            continue;
+        lv_text_get_size(&measured, text, cuts[i], 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (measured.x <= size) {
+            font = cuts[i];
+            break;
+        }
+    }
 
     lv_obj_t *label = lv_label_create(parent);
-    lv_label_set_text(label, symbol);
+    lv_label_set_text(label, symbol ? symbol : "");
     lv_obj_set_pos(label, x, y);
     lv_obj_set_size(label, size, size);
     lv_obj_set_style_pad_all(label, 0, 0);
-    lv_obj_set_style_pad_top(label, (size - lv_font_get_line_height(font)) / 2, 0);
+    int line = lv_font_get_line_height(font);
+    lv_obj_set_style_pad_top(label, line < size ? (size - line) / 2 : 0, 0);
     lv_obj_set_style_text_font(label, font, 0);
     lv_obj_set_style_text_color(label, lv_color_hex(color), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_scrollable(label, false);
     return label;
+}
+
+lv_obj_t *tinyos_back_button(lv_obj_t *parent, lv_event_cb_t callback)
+{
+    lv_obj_t *back = tinyos_obj(parent, TINYOS_BACK_X, TINYOS_BACK_Y,
+                                TINYOS_BACK_SIZE, TINYOS_BACK_SIZE);
+    lv_obj_add_style(back, &tinyos_theme.pill, 0);
+    lv_obj_set_style_radius(back, TINYOS_PILL_RADIUS, 0);
+    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
+    tinyos_focus(back);
+    tinyos_add_click(back, callback, NULL);
+    lv_obj_t *icon = tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED,
+                                 0, 0, TINYOS_BACK_SIZE);
+    lv_obj_center(icon);
+    return back;
+}
+
+lv_obj_t *tinyos_page_title(lv_obj_t *parent, const char *text, int width)
+{
+    if (width <= 0)
+        width = TINYOS_TITLE_W;
+    return tinyos_label(parent, text, &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
+                        TINYOS_TITLE_X, TINYOS_TITLE_Y, width, TINYOS_TITLE_H);
 }
 
 void tinyos_gradient(lv_obj_t *obj, uint32_t top, uint32_t bottom)
@@ -200,13 +234,71 @@ static lv_obj_t *spatial_focus(lv_group_t *group, uint32_t key)
     return best;
 }
 
+/* Large text fits only three complete rows in the Settings/Appearance lists.
+ * Scrolling just far enough to reveal the focused row left a sliver of the
+ * previous row on screen, so snap to a whole-row viewport instead: show the
+ * focused row with as many complete neighbours as fit. */
+static bool list_row_offset(lv_obj_t *parent, lv_obj_t *obj, int *target)
+{
+    if (!parent || !obj || !(lv_obj_get_scroll_dir(parent) & LV_DIR_VER))
+        return false;
+
+    uint32_t count = lv_obj_get_child_count(parent);
+    if (count < 2)
+        return false;
+
+    int index = -1;
+    int row_height = -1;
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t *child = lv_obj_get_child(parent, i);
+        if (!child)
+            return false;
+        if (child == obj)
+            index = (int)i;
+        int height = lv_obj_get_height(child);
+        if (row_height < 0)
+            row_height = height;
+        else if (height != row_height)
+            return false;
+    }
+    if (index < 0 || row_height <= 0)
+        return false;
+
+    int gap = lv_obj_get_style_pad_row(parent, 0);
+    int pitch = row_height + gap;
+    int viewport = lv_obj_get_height(parent);
+    int pad_top = lv_obj_get_style_pad_top(parent, 0);
+    int pad_bottom = lv_obj_get_style_pad_bottom(parent, 0);
+    if (pitch <= 0 || viewport <= 0)
+        return false;
+
+    int visible = (viewport - pad_top - pad_bottom + gap) / pitch;
+    if (visible < 1)
+        visible = 1;
+    if (visible >= (int)count)
+        return false;
+
+    int first = index - visible + 1;
+    if (first < 0)
+        first = 0;
+    if (first > (int)count - visible)
+        first = (int)count - visible;
+    *target = first * pitch;
+    return true;
+}
+
 static void focus_into_view(lv_obj_t *obj)
 {
     lv_obj_t *parent = lv_obj_get_parent(obj);
     while (parent && lv_obj_get_scroll_dir(parent) == LV_DIR_NONE)
         parent = lv_obj_get_parent(parent);
-    if (parent && parent != lv_screen_active())
-        lv_obj_scroll_to_view(obj, reduce_motion() ? LV_ANIM_OFF : LV_ANIM_ON);
+    if (parent && parent != lv_screen_active()) {
+        int target;
+        if (list_row_offset(parent, obj, &target))
+            lv_obj_scroll_to_y(parent, target, reduce_motion() ? LV_ANIM_OFF : LV_ANIM_ON);
+        else
+            lv_obj_scroll_to_view(obj, reduce_motion() ? LV_ANIM_OFF : LV_ANIM_ON);
+    }
 }
 
 static void global_key_cb(lv_event_t *event)
@@ -242,6 +334,23 @@ void tinyos_focus(lv_obj_t *obj)
     lv_obj_add_style(obj, &tinyos_theme.focus, LV_STATE_FOCUSED);
     lv_obj_add_style(obj, &tinyos_theme.pressed, LV_STATE_PRESSED);
     lv_obj_add_event_cb(obj, global_key_cb, LV_EVENT_KEY, NULL);
+}
+
+void tinyos_focus_on_accent(lv_obj_t *obj)
+{
+    tinyos_focus(obj);
+    /* The normal focus border is the accent itself. On an accent-filled
+     * primary button that is invisible, so use the foreground colour there. */
+    static lv_style_t accent_focus;
+    static bool ready;
+    if (!ready) {
+        lv_style_init(&accent_focus);
+        lv_style_set_border_width(&accent_focus, 2);
+        lv_style_set_border_color(&accent_focus, lv_color_hex(TINYOS_COLOR_TEXT));
+        lv_style_set_border_opa(&accent_focus, LV_OPA_COVER);
+        ready = true;
+    }
+    lv_obj_add_style(obj, &accent_focus, LV_STATE_FOCUSED);
 }
 
 void tinyos_add_click(lv_obj_t *obj, lv_event_cb_t callback, void *data)

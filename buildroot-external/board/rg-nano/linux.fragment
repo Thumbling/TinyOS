@@ -16,9 +16,11 @@ CONFIG_DRM_FBDEV_EMULATION=y
 CONFIG_DRM_PANEL_MIPI_DBI=y
 CONFIG_FB=y
 # Keep a text console on the panel so a boot that stops before the UI is
-# visible without a serial cable. TinyOS paints over it once it starts.
+# visible without a serial cable. Before starting the UI, tinyos-run.sh
+# unbinds the fbcon driver so it can no longer paint over /dev/fb0.
 CONFIG_VT=y
 CONFIG_VT_CONSOLE=y
+CONFIG_VT_HW_CONSOLE_BINDING=y
 CONFIG_FRAMEBUFFER_CONSOLE=y
 CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
 CONFIG_LOGO=y

@@ -7,8 +7,10 @@ config BR2_PACKAGE_TINYOS
 	  TinyOS, the modular firmware for the Anbernic RG Nano.
 
 	  Builds the LVGL user interface, evdev keypad input, fbdev display
-	  output, AXP209 power telemetry and the ALSA WAV player. The
-	  resulting /usr/bin/tinyos is started by the board inittab and
-	  renders directly to /dev/fb0.
+	  output, AXP209 power telemetry, the ALSA WAV player and the mGBA
+	  Game Boy / Game Boy Color / Game Boy Advance cores. The resulting
+	  /usr/bin/tinyos is started by the board inittab and renders
+	  directly to /dev/fb0. ROMs are read from /data/roms; no ROM or BIOS
+	  is installed by this package.
 
 	  https://github.com/Thumbling/TinyOS

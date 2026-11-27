@@ -2,6 +2,7 @@
 
 #include "../core/log.h"
 #include "../platform.h"
+#include "../ui/layout.h"
 #include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../version.h"
@@ -34,17 +35,32 @@ static lv_obj_t *stat_card(lv_obj_t *parent, int x, int y, const char *title,
                            lv_obj_t **value, lv_obj_t **sub)
 {
     bool large = tinyos_large_text();
-    lv_obj_t *card = tinyos_card(parent, x, y, 102, large ? 60 : 56);
+    lv_obj_t *card = tinyos_card(parent, x, y, TINYOS_GRID_CARD_W,
+                                 large ? 60 : 56);
     tinyos_gradient(card, TINYOS_COLOR_SURFACE_2, TINYOS_COLOR_SURFACE);
-    tinyos_label(card, title, &lv_font_montserrat_10, TINYOS_COLOR_DIM,
-                 8, 5, 86, 13);
-    *value = tinyos_label(card, "-", large ? &lv_font_montserrat_14 : &lv_font_montserrat_16,
-                          TINYOS_COLOR_TEXT, large ? 4 : 8, large ? 22 : 19,
-                          large ? 96 : 86, large ? 24 : 20);
+    lv_obj_t *label = tinyos_label(card, title, &lv_font_montserrat_10, TINYOS_COLOR_DIM,
+                                   8, 5, 86, 13);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    /* Pick the base that lands on the 16 px cut at every scale, so
+     * "1008 MHz" and "26/64 MB" stay on one line inside the 102 px card. */
+    int scale = tinyos_text_scale();
+    const lv_font_t *value_base = scale >= 130 ? &lv_font_montserrat_12
+                                  : scale >= 115 ? &lv_font_montserrat_14
+                                                 : &lv_font_montserrat_16;
+    *value = tinyos_label(card, "-", value_base, TINYOS_COLOR_TEXT,
+                          8, large ? 29 : 19, 86, large ? 24 : 20);
+    lv_obj_set_style_text_align(*value, LV_TEXT_ALIGN_CENTER, 0);
     *sub = tinyos_label(card, "", &lv_font_montserrat_10, TINYOS_COLOR_MUTED,
                         8, 40, 86, 12);
-    if (large)
+    lv_obj_set_style_text_align(*sub, LV_TEXT_ALIGN_CENTER, 0);
+    if (large) {
+        /* No secondary note at large sizes, so centre the label/value pair
+         * in the taller 60 px card instead of leaving 14 px dead space. */
+        lv_obj_set_pos(label, 8, 8);
+        lv_obj_set_pos(*value, 8, 29);
+        lv_obj_set_size(*value, 86, 24);
         lv_obj_set_hidden(*sub, true);
+    }
     return card;
 }
 
@@ -59,17 +75,16 @@ static void system_refresh(system_view *view)
 
     snprintf(buffer, sizeof(buffer), "%d MHz", stats.cpu_mhz > 0 ? stats.cpu_mhz : 0);
     lv_label_set_text(view->cpu_value, buffer);
-    snprintf(buffer, sizeof(buffer), "%d C - Cortex-A7", stats.temp_c);
+    snprintf(buffer, sizeof(buffer), "%d C", stats.temp_c);
     lv_label_set_text(view->cpu_sub, buffer);
 
     int used_mb = (stats.mem_total_kb - stats.mem_available_kb) / 1024;
     int total_mb = stats.mem_total_kb / 1024;
-    if (tinyos_large_text())
-        snprintf(buffer, sizeof(buffer), "%d/%d MB", used_mb, total_mb);
-    else
-        snprintf(buffer, sizeof(buffer), "%d / %d MB", used_mb, total_mb);
+    /* Compact at every scale: it keeps the centred value inside the 86 px
+     * text box with real side bearing, including at 100 %. */
+    snprintf(buffer, sizeof(buffer), "%d/%d MB", used_mb, total_mb);
     lv_label_set_text(view->mem_value, buffer);
-    snprintf(buffer, sizeof(buffer), "%d MB available", stats.mem_available_kb / 1024);
+    snprintf(buffer, sizeof(buffer), "%d MB free", stats.mem_available_kb / 1024);
     lv_label_set_text(view->mem_sub, buffer);
 
     if (battery.present && battery.percent >= 0) {
@@ -78,7 +93,7 @@ static void system_refresh(system_view *view)
         lv_label_set_text(view->battery_sub, battery.charging ? "Charging" : "On battery");
     } else {
         lv_label_set_text(view->battery_value, "-");
-        lv_label_set_text(view->battery_sub, "No battery data");
+        lv_label_set_text(view->battery_sub, "No battery");
     }
 
     long hours = stats.uptime_s / 3600;
@@ -110,29 +125,17 @@ static lv_obj_t *system_create(tinyos_ctx *ctx, lv_obj_t *parent)
         return parent;
     view->ctx = ctx;
 
-    lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
-    lv_obj_add_style(back, &tinyos_theme.pill, 0);
-    lv_obj_set_style_radius(back, 10, 0);
-    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
-    tinyos_focus(back);
-    tinyos_add_click(back, back_cb, NULL);
-    tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
-    lv_obj_t *back_icon = lv_obj_get_child(back, 0);
-    lv_obj_center(back_icon);
+    lv_obj_t *back = tinyos_back_button(parent, back_cb);
 
     bool large = tinyos_large_text();
-    tinyos_label(parent, "System", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 44, 2, 150, 24);
-    if (!large)
-        tinyos_label(parent, "Live hardware.", &lv_font_montserrat_10,
-                     TINYOS_COLOR_MUTED, 44, 25, 180, 12);
+    tinyos_page_title(parent, "System", 0);
 
-    int top = large ? 40 : 44;
-    int bottom = large ? 108 : 108;
-    stat_card(parent, 14, top, "CPU", &view->cpu_value, &view->cpu_sub);
-    stat_card(parent, 124, top, "MEMORY", &view->mem_value, &view->mem_sub);
-    stat_card(parent, 14, bottom, "BATTERY", &view->battery_value, &view->battery_sub);
-    stat_card(parent, 124, bottom, "UPTIME", &view->uptime_value, &view->uptime_sub);
+    int top = 40;
+    int bottom = large ? 108 : 104;
+    stat_card(parent, TINYOS_CONTENT_X, top, "CPU", &view->cpu_value, &view->cpu_sub);
+    stat_card(parent, TINYOS_GRID_CARD_X2, top, "MEMORY", &view->mem_value, &view->mem_sub);
+    stat_card(parent, TINYOS_CONTENT_X, bottom, "BATTERY", &view->battery_value, &view->battery_sub);
+    stat_card(parent, TINYOS_GRID_CARD_X2, bottom, "UPTIME", &view->uptime_value, &view->uptime_sub);
 
     tinyos_shell_add_focus(ctx, back);
     view->timer = lv_timer_create(system_timer_cb, 1000, view);

@@ -128,3 +128,19 @@ void tinyos_audio_set_volume(tinyos_audio *audio, int volume)
         volume = 100;
     audio->volume = volume;
 }
+
+bool tinyos_game_audio_begin(int sample_rate)
+{
+    (void)sample_rate;
+    return false;
+}
+
+void tinyos_game_audio_write(const int16_t *stereo_frames, int frame_count)
+{
+    (void)stereo_frames;
+    (void)frame_count;
+}
+
+void tinyos_game_audio_end(void)
+{
+}

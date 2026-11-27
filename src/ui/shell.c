@@ -3,6 +3,8 @@
 #include "../core/log.h"
 #include "../modules/module.h"
 #include "../platform.h"
+#include "layout.h"
+#include "scale.h"
 #include "theme.h"
 #include "wallpaper.h"
 #include "widgets.h"
@@ -11,13 +13,15 @@
 #include <string.h>
 #include <time.h>
 
-static const char *tab_ids[3] = { "home", "apps", "settings" };
-static const char *tab_icons[3] = { LV_SYMBOL_HOME, LV_SYMBOL_LIST, LV_SYMBOL_SETTINGS };
-static const char *tab_labels[3] = { "Home", "Library", "Settings" };
+#define TINYOS_TAB_COUNT 2
+
+static const char *tab_ids[TINYOS_TAB_COUNT] = { "home", "settings" };
+static const char *tab_icons[TINYOS_TAB_COUNT] = { LV_SYMBOL_HOME, LV_SYMBOL_SETTINGS };
+static const char *tab_labels[TINYOS_TAB_COUNT] = { "Home", "Settings" };
 
 static bool is_tab(const char *id)
 {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < TINYOS_TAB_COUNT; i++) {
         if (strcmp(id, tab_ids[i]) == 0)
             return true;
     }
@@ -25,7 +29,7 @@ static bool is_tab(const char *id)
 }
 
 /* A detail screen keeps the tab of the section it was opened from: Settings
- * stays lit on Appearance, Library stays lit on Music. Focus is still drawn
+ * stays lit on Appearance, Home stays lit on Music. Focus is still drawn
  * separately, so "selected" and "focused" never share one treatment. */
 static const char *active_tab(tinyos_ctx *ctx, const tinyos_module *module)
 {
@@ -39,9 +43,6 @@ static const char *active_tab(tinyos_ctx *ctx, const tinyos_module *module)
     if (strcmp(module->id, "appearance") == 0 || strcmp(module->id, "themes") == 0 ||
         strcmp(module->id, "wallpapers") == 0 || strcmp(module->id, "typeface") == 0)
         return "settings";
-    if (strcmp(module->id, "music") == 0 || strcmp(module->id, "system") == 0 ||
-        strcmp(module->id, "about") == 0)
-        return "apps";
     return "home";
 }
 
@@ -54,16 +55,17 @@ static void nav_click_cb(lv_event_t *event)
 
 static void update_nav(tinyos_ctx *ctx, const char *active)
 {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < TINYOS_TAB_COUNT; i++) {
         bool selected = strcmp(active, tab_ids[i]) == 0;
         lv_obj_t *button = ctx->nav[i];
-        lv_obj_t *icon = lv_obj_get_child(button, 0);
-        if (!icon)
+        if (!button)
             continue;
-        lv_obj_set_style_text_color(icon,
-                                    lv_color_hex(selected ? TINYOS_COLOR_CYAN
-                                                          : TINYOS_COLOR_MUTED),
-                                    0);
+        uint32_t color = selected ? TINYOS_COLOR_CYAN : TINYOS_COLOR_MUTED;
+        for (uint32_t child = 0; child < 2; child++) {
+            lv_obj_t *part = lv_obj_get_child(button, child);
+            if (part)
+                lv_obj_set_style_text_color(part, lv_color_hex(color), 0);
+        }
         if (selected)
             lv_obj_add_state(button, LV_STATE_CHECKED);
         else
@@ -79,48 +81,74 @@ static void status_timer_cb(lv_timer_t *timer)
 
 static void create_status_bar(tinyos_ctx *ctx)
 {
-    ctx->status_time = tinyos_label(ctx->screen, "--:--", &lv_font_montserrat_14,
-                                    TINYOS_COLOR_TEXT, 14, 7, 58, 18);
+    /* The status strip stays 26 px high. At 115/130 % the labels use a
+     * restrained 16 px step so the 20 px line box still fits above the
+     * separator; the old 20 px face crossed the line. */
+    bool large = tinyos_large_text();
+    const lv_font_t *status_font = large ? &lv_font_montserrat_16
+                                         : &lv_font_montserrat_14;
+
+    ctx->status_time = lv_label_create(ctx->screen);
+    lv_label_set_text(ctx->status_time, "--:--");
+    lv_obj_set_pos(ctx->status_time, TINYOS_CONTENT_X, large ? 5 : 7);
+    lv_obj_set_size(ctx->status_time, 58, large ? 20 : 18);
+    lv_obj_set_style_text_font(ctx->status_time, status_font, 0);
+    lv_obj_set_style_text_color(ctx->status_time, lv_color_hex(TINYOS_COLOR_TEXT), 0);
     lv_obj_set_style_text_letter_space(ctx->status_time, 0, 0);
 
     ctx->status_battery_icon = lv_label_create(ctx->screen);
-    lv_obj_set_pos(ctx->status_battery_icon, 162, 6);
-    lv_obj_set_size(ctx->status_battery_icon, 18, 18);
-    lv_obj_set_style_text_font(ctx->status_battery_icon, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(ctx->status_battery_icon, large ? 158 : 162, large ? 3 : 6);
+    lv_obj_set_size(ctx->status_battery_icon, large ? 20 : 18, large ? 20 : 18);
+    lv_obj_set_style_text_font(ctx->status_battery_icon, status_font, 0);
     lv_obj_set_style_text_color(ctx->status_battery_icon, lv_color_hex(TINYOS_COLOR_MUTED), 0);
     lv_obj_set_style_text_align(ctx->status_battery_icon, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(ctx->status_battery_icon, LV_SYMBOL_BATTERY_FULL);
 
-    ctx->status_battery = tinyos_label(ctx->screen, "--", &lv_font_montserrat_14,
-                                       TINYOS_COLOR_MUTED, 182, 7, 44, 18);
+    ctx->status_battery = lv_label_create(ctx->screen);
+    lv_label_set_text(ctx->status_battery, "--");
+    lv_obj_set_pos(ctx->status_battery, large ? 180 : 182, large ? 5 : 7);
+    lv_obj_set_size(ctx->status_battery, large ? 46 : 44, large ? 20 : 18);
+    lv_obj_set_style_text_font(ctx->status_battery, status_font, 0);
+    lv_obj_set_style_text_color(ctx->status_battery, lv_color_hex(TINYOS_COLOR_MUTED), 0);
     lv_obj_set_style_text_align(ctx->status_battery, LV_TEXT_ALIGN_RIGHT, 0);
 
-    lv_obj_t *line = tinyos_obj(ctx->screen, 14, 26, 212, 1);
+    lv_obj_t *line = tinyos_obj(ctx->screen, TINYOS_CONTENT_X, TINYOS_STATUS_H,
+                                TINYOS_CONTENT_W, 1);
     lv_obj_set_style_bg_color(line, lv_color_hex(TINYOS_COLOR_LINE), 0);
     lv_obj_set_style_bg_opa(line, LV_OPA_50, 0);
 }
 
 static void create_nav(tinyos_ctx *ctx)
 {
-    ctx->nav_container = tinyos_card(ctx->screen, 14, 207, 212, 28);
+    ctx->nav_container = tinyos_card(ctx->screen, TINYOS_CONTENT_X, TINYOS_NAV_Y,
+                                     TINYOS_CONTENT_W, TINYOS_NAV_H);
     lv_obj_set_style_radius(ctx->nav_container, 14, 0);
 
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t *button = tinyos_obj(ctx->nav_container, 8 + i * 68, 3, 60, 22);
+    for (int i = 0; i < TINYOS_TAB_COUNT; i++) {
+        lv_obj_t *button = tinyos_obj(ctx->nav_container,
+                                      TINYOS_NAV_INSET + i * TINYOS_NAV_ITEM_GAP, 3,
+                                      TINYOS_NAV_ITEM_W, 22);
         lv_obj_set_style_radius(button, 11, 0);
         lv_obj_add_style(button, &tinyos_theme.nav_item, 0);
         lv_obj_add_style(button, &tinyos_theme.nav_active, LV_STATE_CHECKED);
+        lv_obj_set_flex_flow(button, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(button, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_all(button, 0, 0);
+        lv_obj_set_style_pad_column(button, 4, 0);
         tinyos_focus(button);
         lv_obj_add_event_cb(button, nav_click_cb, LV_EVENT_CLICKED, (void *)tab_ids[i]);
 
         lv_obj_t *icon = lv_label_create(button);
         lv_label_set_text(icon, tab_icons[i]);
+        lv_obj_set_size(icon, 20, 20);
+        lv_obj_set_style_pad_all(icon, 0, 0);
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(icon, lv_color_hex(TINYOS_COLOR_MUTED), 0);
-        lv_obj_center(icon);
+        lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, 0);
 
-        lv_obj_set_style_text_letter_space(button, 0, 0);
-        lv_obj_set_user_data(button, (void *)tab_labels[i]);
+        tinyos_label(button, tab_labels[i], &lv_font_montserrat_10,
+                     TINYOS_COLOR_MUTED, 0, 0, 0, 0);
         ctx->nav[i] = button;
     }
 }
@@ -201,7 +229,8 @@ static void build_shell(tinyos_ctx *ctx, const char *start_id)
 
     create_status_bar(ctx);
 
-    ctx->content = tinyos_obj(ctx->screen, 0, 30, 240, 174);
+    ctx->content = tinyos_obj(ctx->screen, 0, TINYOS_CONTENT_Y, TINYOS_SCREEN_W,
+                              TINYOS_CONTENT_H);
     lv_obj_set_style_bg_opa(ctx->content, LV_OPA_TRANSP, 0);
 
     create_nav(ctx);

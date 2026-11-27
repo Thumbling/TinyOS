@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "emulator/game_keys.h"
+
 /* Semantic shoulder/face keys, outside LVGL's keypad navigation range. */
 #define TINYOS_KEY_PREV 0xE000u
 #define TINYOS_KEY_NEXT 0xE001u
@@ -41,11 +43,26 @@ void tinyos_performance_set(int mode);
 int tinyos_performance_get(void);
 void tinyos_stats_read(tinyos_stats *stats);
 
+/* Direct game-session path. It intentionally bypasses LVGL so a 60 Hz
+ * emulator frame never waits for a partial-refresh timer. X + Y is the
+ * deliberate exit chord; Power exits immediately. */
+void tinyos_game_input_begin(void);
+uint32_t tinyos_game_input_poll(void);
+void tinyos_game_input_end(void);
+void tinyos_game_present_rgb565(const uint16_t *pixels, int width, int height);
+bool tinyos_game_audio_begin(int sample_rate);
+void tinyos_game_audio_write(const int16_t *stereo_frames, int frame_count);
+void tinyos_game_audio_end(void);
+
 #ifdef TINYOS_SIM
 const uint16_t *tinyos_host_framebuffer(void);
+void tinyos_host_set_stale_framebuffer(bool enabled);
+uint32_t tinyos_host_framebuffer_stale_count(void);
+uint32_t tinyos_host_framebuffer_written_count(void);
 void tinyos_host_input_key(uint32_t key);
 void tinyos_host_input_down(uint32_t key);
 void tinyos_host_input_up(uint32_t key);
+void tinyos_host_game_input_set(uint32_t keys);
 void tinyos_host_tick_advance(uint32_t milliseconds);
 #endif
 

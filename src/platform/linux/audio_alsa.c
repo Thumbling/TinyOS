@@ -614,3 +614,66 @@ void tinyos_audio_set_volume(tinyos_audio *audio, int volume)
     pthread_mutex_unlock(&audio->lock);
     apply_volume(volume);
 }
+
+/* Continuous PCM stream for the emulator frontend. The WAV player above owns
+ * its own thread; a game session is already the only audio producer, so a
+ * direct blocking write keeps the path small and avoids another queue. */
+static snd_pcm_t *game_pcm;
+
+bool tinyos_game_audio_begin(int sample_rate)
+{
+    tinyos_game_audio_end();
+    if (sample_rate <= 0)
+        sample_rate = 44100;
+
+    int error = snd_pcm_open(&game_pcm, "default", SND_PCM_STREAM_PLAYBACK, 0);
+    if (error < 0) {
+        TINYOS_LOGW("game audio: ALSA open failed: %s", snd_strerror(error));
+        game_pcm = NULL;
+        return false;
+    }
+
+    error = snd_pcm_set_params(game_pcm, SND_PCM_FORMAT_S16_LE,
+                               SND_PCM_ACCESS_RW_INTERLEAVED, 2,
+                               (unsigned int)sample_rate, 1, 120000);
+    if (error < 0) {
+        TINYOS_LOGW("game audio: ALSA params failed: %s", snd_strerror(error));
+        snd_pcm_close(game_pcm);
+        game_pcm = NULL;
+        return false;
+    }
+
+    TINYOS_LOGI("game audio: %d Hz stereo ALSA stream", sample_rate);
+    return true;
+}
+
+void tinyos_game_audio_write(const int16_t *stereo_frames, int frame_count)
+{
+    if (!game_pcm || !stereo_frames || frame_count <= 0)
+        return;
+
+    const int16_t *cursor = stereo_frames;
+    int remaining = frame_count;
+    while (remaining > 0) {
+        snd_pcm_sframes_t written = snd_pcm_writei(
+            game_pcm, cursor, (snd_pcm_uframes_t)remaining);
+        if (written < 0) {
+            if (snd_pcm_recover(game_pcm, (int)written, 1) < 0)
+                return;
+            continue;
+        }
+        if (written == 0)
+            return;
+        cursor += written * 2;
+        remaining -= (int)written;
+    }
+}
+
+void tinyos_game_audio_end(void)
+{
+    if (!game_pcm)
+        return;
+    snd_pcm_drop(game_pcm);
+    snd_pcm_close(game_pcm);
+    game_pcm = NULL;
+}

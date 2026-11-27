@@ -6,6 +6,9 @@ following upstream components; their licenses remain in effect.
 | Component | License | How it is used |
 |---|---|---|
 | [LVGL 9.6](https://lvgl.io/) | MIT | vendored in `third_party/lvgl`, linked statically |
+| [mGBA 0.10.5](https://mgba.io/) | MPL-2.0 | vendored in `third_party/mgba`, both GBA and GB cores linked statically |
+| [inih](https://github.com/benhoyt/inih) | BSD-3-Clause | vendored inside mGBA, configuration parser |
+| [blip_buf](https://github.com/blargg/blip_buf) | LGPL-2.1+ | vendored inside mGBA, audio resampler; statically linked |
 | [stb_image_write](https://github.com/nothings/stb) | Public domain / MIT | simulator PNG writer |
 | [Montserrat](https://fonts.google.com/specimen/Montserrat) | SIL OFL 1.1 | LVGL built-in font bitmaps |
 | [Inter](https://github.com/rsms/inter) | SIL OFL 1.1 | generated 4-bpp UI bitmaps |
@@ -41,6 +44,18 @@ firmware project. The application, UI, platform backends, Buildroot external
 tree and board files were written for this repository. Upstream components are
 used through their public APIs and are credited above.
 
+## Emulator licensing
+
+TinyOS links mGBA 0.10.5 statically. mGBA is **MPL-2.0**; the complete
+corresponding source, including the exact backend source list and build files,
+is kept in `third_party/mgba`. TinyOS does not add a BIOS or ROM image. The
+embedded `inih` parser is BSD-3-Clause and `blip_buf` is **LGPL-2.1+**. The
+LGPL component is used unmodified and statically linked; the TinyOS source
+tree, `third_party/mgba/sources.mk`, and the Makefiles provide everything needed
+to relink the firmware against a modified blip_buf. Redistributors must preserve
+the LGPL notice and relink rights. See `third_party/mgba/src/third-party/blip_buf/license.txt`
+and `third_party/mgba/src/third-party/inih/LICENSE.txt`.
+
 ## License texts
 
 Full license texts for vendored components are kept next to their sources:
@@ -48,5 +63,8 @@ Full license texts for vendored components are kept next to their sources:
 - `third_party/lvgl/LICENCE.txt`
 - `third_party/stb_image_write.h` (header contains the dual-license notice)
 - `third_party/fonts/licenses/` (SIL OFL 1.1 for all five UI families)
+- `third_party/mgba/LICENSE` (MPL-2.0)
+- `third_party/mgba/src/third-party/inih/LICENSE.txt` (BSD-3-Clause)
+- `third_party/mgba/src/third-party/blip_buf/license.txt` (LGPL-2.1+)
 - Linux, U-Boot, Buildroot and ALSA license files are provided by their
   upstream source trees during the Buildroot build.

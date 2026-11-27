@@ -12,7 +12,7 @@ typedef struct tinyos_module {
 } tinyos_module;
 
 extern const tinyos_module tinyos_module_home;
-extern const tinyos_module tinyos_module_apps;
+extern const tinyos_module tinyos_module_games;
 extern const tinyos_module tinyos_module_music;
 extern const tinyos_module tinyos_module_settings;
 extern const tinyos_module tinyos_module_system;

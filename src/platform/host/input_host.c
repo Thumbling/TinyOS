@@ -43,3 +43,25 @@ void tinyos_host_input_up(uint32_t key)
 {
     tinyos_key_repeat_up(key, lv_tick_get());
 }
+
+static uint32_t host_game_keys;
+
+void tinyos_game_input_begin(void)
+{
+    host_game_keys = 0;
+}
+
+uint32_t tinyos_game_input_poll(void)
+{
+    return host_game_keys;
+}
+
+void tinyos_game_input_end(void)
+{
+    host_game_keys = 0;
+}
+
+void tinyos_host_game_input_set(uint32_t keys)
+{
+    host_game_keys = keys;
+}

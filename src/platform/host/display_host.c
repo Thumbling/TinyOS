@@ -6,8 +6,13 @@
 #define HOST_WIDTH 240
 #define HOST_HEIGHT 240
 #define HOST_BUFFER_LINES 40
+#define STALE_A 0xDEADu
+#define STALE_B 0xBEEFu
+
+static bool stale_framebuffer_requested;
 
 static uint16_t framebuffer[HOST_WIDTH * HOST_HEIGHT];
+static uint8_t write_coverage[HOST_WIDTH * HOST_HEIGHT];
 static uint8_t draw_buffer_a[HOST_WIDTH * HOST_BUFFER_LINES * 2];
 static uint8_t draw_buffer_b[HOST_WIDTH * HOST_BUFFER_LINES * 2];
 
@@ -35,6 +40,8 @@ static void flush_cb(lv_display_t *display, const lv_area_t *area, uint8_t *pixe
         if (copy_width > 0) {
             memcpy(&framebuffer[destination_y * HOST_WIDTH + destination_x],
                    &source[source_x], (size_t)copy_width * sizeof(uint16_t));
+            memset(&write_coverage[destination_y * HOST_WIDTH + destination_x], 1,
+                   (size_t)copy_width);
         }
         source += width;
     }
@@ -43,7 +50,14 @@ static void flush_cb(lv_display_t *display, const lv_area_t *area, uint8_t *pixe
 
 lv_display_t *tinyos_display_create(void)
 {
-    memset(framebuffer, 0, sizeof(framebuffer));
+    if (stale_framebuffer_requested) {
+        /* Test-only: stand in for a console image left by fbcon before the
+         * first GUI frame. The normal host path clears to black like fbdev. */
+        for (size_t i = 0; i < sizeof(framebuffer) / sizeof(framebuffer[0]); i++)
+            framebuffer[i] = (i & 1u) ? STALE_A : STALE_B;
+    } else {
+        memset(framebuffer, 0, sizeof(framebuffer));
+    }
 
     lv_display_t *display = lv_display_create(HOST_WIDTH, HOST_HEIGHT);
     if (!display)
@@ -59,4 +73,54 @@ lv_display_t *tinyos_display_create(void)
 const uint16_t *tinyos_host_framebuffer(void)
 {
     return framebuffer;
+}
+
+void tinyos_host_set_stale_framebuffer(bool enabled)
+{
+    stale_framebuffer_requested = enabled;
+    if (enabled) {
+        for (size_t i = 0; i < sizeof(framebuffer) / sizeof(framebuffer[0]); i++)
+            framebuffer[i] = (i & 1u) ? STALE_A : STALE_B;
+        memset(write_coverage, 0, sizeof(write_coverage));
+    }
+}
+
+uint32_t tinyos_host_framebuffer_stale_count(void)
+{
+    uint32_t stale = 0;
+    for (size_t i = 0; i < sizeof(framebuffer) / sizeof(framebuffer[0]); i++) {
+        if (framebuffer[i] == STALE_A || framebuffer[i] == STALE_B)
+            stale++;
+    }
+    return stale;
+}
+
+uint32_t tinyos_host_framebuffer_written_count(void)
+{
+    uint32_t written = 0;
+    for (size_t i = 0; i < sizeof(write_coverage) / sizeof(write_coverage[0]); i++) {
+        if (write_coverage[i])
+            written++;
+    }
+    return written;
+}
+
+void tinyos_game_present_rgb565(const uint16_t *pixels, int width, int height)
+{
+    if (!pixels || width <= 0 || height <= 0)
+        return;
+    if (width > HOST_WIDTH)
+        width = HOST_WIDTH;
+    if (height > HOST_HEIGHT)
+        height = HOST_HEIGHT;
+
+    for (int y = 0; y < HOST_HEIGHT; y++) {
+        for (int x = 0; x < HOST_WIDTH; x++) {
+            uint16_t value = 0;
+            if (x < width && y < height)
+                value = pixels[y * width + x];
+            framebuffer[y * HOST_WIDTH + x] = value;
+            write_coverage[y * HOST_WIDTH + x] = 1;
+        }
+    }
 }

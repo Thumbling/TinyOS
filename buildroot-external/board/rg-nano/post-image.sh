@@ -12,7 +12,7 @@ if [ ! -x "$GENIMAGE" ]; then
     GENIMAGE="$(command -v genimage)"
 fi
 
-printf 'This FAT partition is the writable TinyOS data volume.\n' \
+printf 'This FAT partition is the writable TinyOS data volume.\n\nGame ROMs go in:\n  /roms/gb   Game Boy\n  /roms/gbc  Game Boy Color\n  /roms/gba  Game Boy Advance\n\nBattery saves are written beside each ROM as <name>.sav.\n' \
     > "$BINARIES_DIR/data-readme.txt"
 
 # Buildroot's host-uboot-tools normally generates boot.scr from boot.cmd. Keep

@@ -19,7 +19,7 @@ bitmaps or the canvas. Icons, hairlines and focus rings stay pixel-aligned.
 |---|---|
 | Resolution | 240 × 240 |
 | Status line | y = 0…26 |
-| Content | y = 30…204 (174 px high) |
+| Content | y = 30…203 (174 px high) |
 | Navigation | y = 207…235 |
 | Safe margin | 14 px left/right |
 | Corner radius | 10–20 px |
@@ -27,6 +27,65 @@ bitmaps or the canvas. Icons, hairlines and focus rings stay pixel-aligned.
 
 Every screen builds inside the 174 px content viewport. New screens must not
 add a fourth shell layer or draw over the status/navigation bars.
+
+## Layout system
+
+Screens do not own their own margin numbers. `src/ui/layout.h` is the single
+source for the 240 × 240 grid:
+
+| Token | Value | Used for |
+|---|---:|---|
+| `TINYOS_MARGIN` | 14 px | status text, content, navigation |
+| `TINYOS_CONTENT_X/W` | 14 / 212 px | full-width content |
+| `TINYOS_FOCUS_RING` | 2 px | focus outline, kept outside the measured content |
+| `TINYOS_LIST_X/W` | 12 / 216 px | scroll wrapper with a 2 px focus gutter |
+| `TINYOS_LIST_INNER_PAD` | 2 px | rows sit at x = 14 with a 212 px track |
+| `TINYOS_LIST_Y/H` | 32 / 142 px | normal list viewport |
+| `TINYOS_LIST_H_LARGE` | 134 px | 130 px padded viewport, three 42 px rows and 4 px slack |
+| `TINYOS_ROW_H` / `_DENSE` / `_LARGE` | 24 / 21 / 42 px | list rhythm |
+| `TINYOS_BACK_X/Y` | 14 / 26 px | every back button |
+| `TINYOS_TITLE_X` | 48 px | every page title, 10 px after the 26 px button |
+| `TINYOS_CHEVRON_X` | 186 px | the shared right-edge affordance |
+| `TINYOS_GRID_CARD_H/W` | 56 / 102 px | System metric cards |
+| `TINYOS_QUICK_TILE_W/H` | 64 / 48 px | Home quick destinations |
+
+The same 14 px edge is used by the status line, back button, content cards,
+list gutter and navigation. The back button and title share one 12 px gap; the
+right edge of every row, pill, card and chevron resolves against x = 226.
+
+Focus is a **2 px outline**, not a border. It therefore never changes a row's
+content box, never shifts a label and never reflows a list. Scroll wrappers own
+a 2 px gutter so the outline has room on all four sides. Lists snap to whole
+rows; a partially visible row at either viewport edge is a bug. Settings and
+Appearance show exactly three complete 42 px rows when the text scale is large;
+Typeface shows all six families in 21 px rows without scrolling.
+
+## Clipping guard
+
+`./build/tinyos-sim --layout-audit` walks the live LVGL tree after rendering.
+For every non-hidden label, including every icon label, it measures the actual
+font metrics with `lv_text_get_size()` and checks the rendered text against:
+
+- its own content box (catches a label whose font is too large for its row; an
+  empty box is a failure too);
+- every ancestor container (catches a row escaping its card or list);
+- the 30…203 content viewport for labels in a module (catches a label escaping
+  into the status or navigation band);
+- the 240 × 240 panel (catches anything off the physical screen).
+
+Labels wholly scrolled out of a viewport are ignored; a partly visible label is
+a failure because it would be visibly cut. The audit exits non-zero on any
+failure, so CI and `make layout-audit` fail mechanically rather than relying on
+a reviewer noticing a clipped glyph. `tests/layout-audit.sh` runs the full
+matrix: all ten screens at 100/115/130 %, three Music states, the power dialog,
+25 themes, 10 wallpapers, all six typefaces across every screen and scale, and
+all valid scroll/focus endpoints — **346 matrix cases, 0 failures**.
+
+The simulator also has a permanent negative self-test: `--layout-selftest`
+injects five invalid labels into the real screen (glyph-too-wide, line-height,
+ancestor escape, content-viewport escape and panel escape) and must exit 1 with
+one concrete message for each. `tests/layout-audit.sh` requires that expected
+failure, so the guard cannot silently become a no-op.
 
 ## Colour roles
 
@@ -114,33 +173,40 @@ secondary copy yields space, and long lists scroll instead of clipping.
 | Base role | 100 % | 115 % | 130 % |
 |---|---:|---:|---:|
 | labels, hints, metadata | 10 | 12 | 14 |
-| row / card titles | 12 | 14 | 16 |
-| dense numerals | 14 | 16 | 20 |
-| player title, metric values | 16 | 20 | 20 |
+| row titles, card titles | 12 | 14 | 14 |
+| dense numerals / metrics | 14 | 16 | 16 |
+| player title | 16 | 20 | 20 |
 | screen titles, greeting | 20 | 24 | 24 |
 | wordmark | 24 | 24 | 24 |
 | splash | 28 | 28 | 28 |
 
-The status time and battery percentage follow the dense-numeral ramp; the
-58 px time box still fits at 20 px. Typeface specimens deliberately use a
-smaller specimen ramp (12 px at 100 %, 12/14 px at 115/130 %).
+The status time and battery percentage use a 14 px face at 100 % and a 16 px
+face at 115/130 %; the 58 px time box fits both. Typeface specimens stay at
+12 px at every scale so six rows fit without scrolling.
 
 Large-text composition:
 
-- Headings keep a 24 px cap; secondary header taglines are hidden above 100 %.
-- **Settings**, **Appearance** and **Wallpapers** switch to 38 px two-line rows:
-  label on line 1, slider/pill/switch on line 2. The 6 Settings rows, 5
-  Appearance rows and 6 Typeface rows scroll; focus is always scrolled into view.
-- **Home** grows the hero to 96 px and drops the decorative orb at 115/130 %.
-- **Library** uses 56 px cards, 14 px titles and shorter subtitles; its footer
-  and page subtitle are hidden above 100 %.
+- Headings keep a 24 px cap; secondary header taglines and decorative subtitles
+  are hidden above 100 %.
+- **Settings**, **Appearance** and **Wallpapers** switch to **42 px two-line
+  rows**: icon and 14 px label on line 1, slider/pill/switch on line 2. The
+  Settings and Appearance list wrappers are 134 px high and show three complete rows;
+  Wallpapers keeps its two rows outside a list. Focus-in-view keeps the active
+  row fully inside the padded viewport.
+- **Home** grows the hero to 94 px, drops the decorative orb and the APPS
+  eyebrow, uses the short “Room to grow.” tagline and moves three 64 × 52 quick
+  tiles to y = 112.
+- **Typeface** keeps all six families visible: six 21 px rows with no inter-row
+  gap fit the 142 px wrapper (138 px padded viewport) at every scale; no
+  scrolling or scrollbar is needed.
 - **Music** uses a 52 px album card, a 154 px title column at 20 px, and a 46 px
-  play button at 115/130 %.
-- **System** cards grow to 60 px and values to 20 px; the secondary notes are
-  hidden. **About** shortens its mission copy and hides the upstream credit
-  block. **Themes** grows its preview to 74 px. **Wallpapers** uses a 50 px
-  preview and 38 px rows. The power-off dialog grows from 180 × 108 to
-  212 × 124 px with 88/100 px buttons.
+  play button at 115/130 %. Its loading, empty and error cards hide the track
+  counter.
+- **System** cards grow to 60 px, labels to 14 px and values to 16 px; the
+  secondary notes are hidden. **About** shortens its mission copy and hides the
+  upstream credit block. **Themes** grows its preview to 74 px. **Wallpapers**
+  uses a 50 px preview and 42 px rows. The power-off dialog grows from 180 × 108
+  to 216 × 124 px with 76/104 px buttons.
 
 Evidence: the five critical screens at all three levels, plus focus and scroll
 proof at 130 %:
@@ -156,90 +222,87 @@ proof at 130 %:
 ![Appearance 130, Text size focused](ui-text-130-appearance-focus.png)
 ![Appearance 130, Typeface row scrolled in](ui-text-130-appearance-rows.png)
 ![Settings 130, Power off scrolled in and focused](ui-text-130-settings-focus.png)
-![Typeface 130, last row scrolled in and focused](ui-text-130-typeface-focus.png)
+![Typeface 130, last row focused](ui-text-130-typeface-focus.png)
 
 ## Screen patterns
 
 ### Home
 
-At 100 %: a 212 × 88 hero card with the date, greeting, one-line tagline and a
-gradient orb. Three 64 × 44 quick tiles (Music, System, About) sit below a
-“QUICK ACCESS” eyebrow — only destinations the tab bar cannot reach. At
-115/130 % the hero grows to 96 px and the decorative orb is omitted so
-“Good evening” keeps a 196 px line; the tiles move to y = 124. The wallpaper
-remains visible around the cards but never behind body text without a solid
-surface.
-
-### Library
-
-A 2 × 2 grid of 102 × 50 app tiles at y = 42 and y = 100 (8 px gutter) with a
-24 px badge, 12 px title and 10 px subtitle. At 115/130 % the tiles are 56 px
-tall at y = 40/104, the titles use the 10→12/14 px ramp, and the subtitle is
-shortened (“WAVs”). The page subtitle and “Modular by design.” footer are
-secondary and hidden above 100 % so the grid stays inside the 174 px content
-viewport. The focused tile gets a 2 px accent ring. Tiles carry no chevrons;
-the whole card is the target.
+At 100 %: a 212 × 90 hero card with the date, greeting, one-line tagline and a
+gradient orb. Three 64 × 48 quick tiles (Music, System, Games) sit at y = 120 below an
+“APPS” eyebrow at y = 100 — the only destinations the tab bar cannot reach, and
+there is deliberately no placeholder tile. At 115/130 % the hero grows
+to 94 px, the decorative orb and eyebrow are omitted, and the short “Room to
+grow.” tagline keeps the card quiet; the tiles become 64 × 52 at y = 112. The
+wallpaper remains visible around the cards but never behind body text without
+a solid surface.
 
 ### Settings
 
-At 100 %: six compact 22 px rows with 2 px gaps and a 9 px radius, starting at
-y = 28: **Appearance**, Brightness, Volume, 24-hour clock, Performance and Power
-off. Sliders, switches and pills share a 198 px right edge; slider tracks are
-88 px wide at x = 110. Sliders and the clock switch focus their whole row, so
-the focus ring never crosses a knob. The theme pill uses the compact theme name
-(for example “Mono” for Monochrome) and never ellipsises.
+At 100 %: six compact 21 px rows with 2 px gaps and a 9 px radius. The 142 px
+list wrapper begins at y = 32 and its 2 px inset puts the first row at y = 34: **Appearance**, Brightness, Volume, 24-hour clock,
+Performance and Power off. Sliders, switches and pills share the right edge;
+slider tracks are 88 px wide at x = 110. Sliders and the clock switch focus
+their whole row, so the focus ring never crosses a knob. The theme pill uses
+the compact theme name (for example “Mono” for Monochrome) and never
+ellipsises. The Performance row carries the same chevron as Appearance.
 
-At 115/130 % the list starts at y = 34 and every row becomes a **38 px two-line
-row**: icon and 14/16 px label on line 1, a 170 px slider or a 110 × 18 px pill
-on line 2. Six rows exceed the viewport, so the list scrolls and focus-in-view
-brings the active row into view; the focus policy stays inside the list until
-its last row before reaching the tab bar. The dialog grows from 180 × 108 at
-(30, 62) to 212 × 124 at (14, 58), with 88/100 px buttons, a 16/20 px title and a
-12/14 px body (“TinyOS will shut down.”). It owns the modal group; B closes it and
-returns the ring to Power off. Appearance is always the first row so
-personalisation is discoverable.
+At 115/130 % the list wrapper begins at y = 32 and its first row at y = 34;
+every row becomes a **42 px two-line row**: icon and 14 px label on line 1, a
+170 px slider or a 110 × 18 px pill on line 2. The 130 px padded viewport shows
+three complete rows, including the 24-hour
+row; the remaining three are reached in whole-row snaps, so neither edge of
+the padded viewport ever shows a partial row. The dialog grows from 180 × 108 at (30, 62) to 216 × 124 at
+(12, 58), with 76/104 px buttons, a 20 px title and a 14 px body (“TinyOS will
+shut down.”). It owns the modal group; B closes it and returns the ring to
+Power off. Appearance is always the first row so personalisation is
+discoverable.
 
 ### Appearance
 
 At 100 %: five 24 px rows with 2 px gaps: Theme, **Text size**, Wallpaper,
 Motion and Typeface. Each row shows its current value in a 72 × 18 pill and a
 12 px chevron at x = 186. Text size cycles 100 → 115 → 130 % and reloads the
-shell; the 5 rows fit the 132 px list and the old footer hint is gone.
+shell; all five rows fit the 142 px list wrapper (138 px padded viewport) and
+the old footer hint is gone.
 Theme and typeface pills use the compact names (“Mono”, “Grotesk”).
 
-At 115/130 % the header tagline is hidden and the same five rows become 38 px
-two-line rows with a 110 × 18 px pill; the list starts at y = 34 and scrolls.
-The Text size row stays second, so its current percentage is visible at every
-scale. A back button sits at the top left; A opens the picker or cycles the
-text size, B returns to Settings.
+At 115/130 % the header tagline is hidden and the same five rows become 42 px
+two-line rows with a 110 × 18 px pill; the 134 px wrapper shows three full rows
+and snaps in whole-row steps for the remaining two; no half row is left at
+either edge. The Text size row stays second, so its
+current percentage is visible at every scale. A back button sits at the top
+left; A opens the picker or cycles the text size, B returns to Settings.
 
 ### Themes
 
-A live 212 × 62 preview card at y = 42 at 100 %; at 115/130 % it grows to 74 px
-at y = 38 with a 50 px sample block. The page tagline is hidden above 100 %.
+A live 212 × 62 preview card at y = 36 at 100 %; at 115/130 % it grows to 74 px
+at y = 36 with a 50 px sample block. The page tagline is hidden above 100 %.
 Palette name, `NN / 25` counter and the X/Y hint remain inside the viewport.
 X/Y or L/R steps through the gallery; A applies immediately and rebuilds the
 UI. The preview never uses the old palette for its sample cards.
 
 ### Wallpapers
 
-A 212 × 54 animated preview at y = 42 above two 22 px rows at y = 100 and
-y = 124 at 100 %: Wallpaper and Speed, each with a 72 × 18 pill at x = 106. The
-hint line sits at y = 152. Motion lives in Appearance.
+A 212 × 64 animated preview at y = 36 above two 22 px rows at y = 106 and
+y = 132 at 100 %: Wallpaper and Speed, each with a 72 × 18 pill at x = 106. The
+hint line sits at y = 160 and ends inside the 204 px content edge. Motion lives
+in Appearance.
 
 At 115/130 % the tagline and hint are hidden, the preview is 50 px at y = 36,
-and the two rows are 38 px two-line rows at y = 94/134 with 110 × 18 px pills.
+and the two rows are 42 px two-line rows at y = 88/132 with 110 × 18 px pills.
 Style and speed cycle on A; X/Y or L/R adjusts the focused row. Changes are
 saved and applied to the shell wallpaper immediately, so the preview and the
 real background never drift apart.
 
 ### Typeface
 
-Six 21 px rows at 100 %; 23 px rows with 2 px gaps in a 136 px scroll list at
-115/130 %. Each row renders its name with the title ramp (12→14/16 px) and
-`Aa 012` in the candidate family at 12/12/14 px, with a selected marker and
-check. The last row is reached by scrolling; focus-in-view keeps the ring fully
-visible. A applies the family and rebuilds the shell.
+Six 21 px rows at every scale with no inter-row gap in the 142 px wrapper (138 px
+padded viewport). Each row renders
+its name with the title ramp (12 px at 100 %, 14 px at 115/130 %) and `Aa 012`
+in the candidate family at 12 px, with a selected marker and check. All six
+families are visible at once at 130 %; the list neither clips nor needs a
+scrollbar. A applies the family and rebuilds the shell.
 
 ### Music
 
@@ -285,9 +348,10 @@ screenshots.
 
 Four 102 × 56 metric cards at 100 %: CPU, memory, battery and uptime, each
 with a 10 px label, 16 px value and 10 px note. At 115/130 % the cards grow to
-60 px at y = 40/108, the labels use 12/14 px, the values 16/20 px and the
-secondary notes are hidden; “1008 MHz” and “26/64 MB” fit the widened 96 px value box. A
-back button completes the screen.
+60 px at y = 40/108, the labels use 12/14 px and the values stay at 16 px; the
+secondary notes are hidden. The labels, values and notes are centred; the
+value line uses an 86 px text box with 8 px side bearings, so “1008 MHz” and
+“26/64 MB” stay on one line. A back button completes the screen.
 
 ### About
 
@@ -339,8 +403,9 @@ fades the ring and the pressed fill; nothing moves.
   screen behind it, B closes the dialog and focus returns to the Power off row.
   Start closes the dialog before going Home.
 - The selected tab stays lit on detail screens: Settings stays active on
-  Appearance, Themes, Wallpapers and Typeface, Library stays active on Music,
-  System and About. Selected (filled pill) and focused (outline) are distinct
+  Appearance, Themes, Wallpapers and Typeface, Home stays active on Music and
+  System, and Settings stays active on About (opened from Settings). Selected
+  (filled pill) and focused (outline) are distinct
   treatments. The shell maintains a **back stack** for nested screens:
 Settings → Appearance → Themes → B returns to Appearance, then Settings, then
 Home. Changing tabs clears the stack.
@@ -363,7 +428,7 @@ Motion confirms a state change; it never delays input or moves the layout.
   screen and never bounces.
 - Pressed is a separate state: a 2 px primary-colour ring over the focused ring,
   so a held A never hides where the user is.
-- The dialog slides and fades in as one card (180 × 108 at 100 %, 212 × 124
+- The dialog slides and fades in as one card (180 × 108 at 100 %, 216 × 124
   at 115/130 %); the backdrop itself is static, avoiding a full-screen redraw.
 - Text scaling is a build-time font/layout change, not a per-frame transform.
   Reduce Motion is frame-identical at 100 % and 130 % (content compared below
@@ -385,10 +450,11 @@ Motion confirms a state change; it never delays input or moves the layout.
 - Destructive red: at least 4.5:1.
 - No text directly on a moving wallpaper; cards use opaque or near-opaque
   surfaces.
-- The status line carries a 14 px time at 100 % (16/20 px at 115/130 %), a
-  14 px battery icon at (162, 6) and a 14/16/20 px percentage, split into
-  separate labels so a typeface without symbol glyphs cannot hide battery
-  state. The 58 px time box fits the 20 px clock. There is no second wordmark.
+- The status line carries a 14 px time at 100 % (16 px at 115/130 %), a 14 px
+  battery icon at (162, 6) (16 px at (158, 3) above 100 %) and a 14/16/16 px
+  percentage, split into separate labels so a typeface without symbol glyphs
+  cannot hide battery state. The 58 px time box fits both faces. There is no
+  second wordmark.
 
 ## Performance rules
 
@@ -411,19 +477,29 @@ Motion confirms a state change; it never delays input or moves the layout.
 
 - **Clean build:** `make clean` followed by the full `sim` build → **0 warnings,
   0 errors**.
-- **Two full render passes:** all ten screens at 100 % were rendered twice and
-  compared pixel-by-pixel; the result is **byte-identical**, including the
-  status clock. `docs/ui-*.png` is byte-identical to the second pass.
-- **Entrance animation:** Home at frame 3 vs. frame 90 differs in the content
-  viewport (30,284 px at 100 %; 32,321 px at 130 %).
-- **Reduce Motion:** frame 3 vs. frame 90 is **0 differing pixels** below the
-  status line at both 100 % and 130 %.
-- **Input:** `--keytest` → held A **1 CLICKED / 1 event**, D-pad **3 events in
-  480 ms**, **0 events after release**.
-- **Text scale:** Settings, Appearance, Typeface, Music and Themes were rendered
-  at 100/115/130 % and inspected at 2×; the 130 % focus/scroll shots (Settings
-  Power off, Appearance Typeface, Typeface Atkinson) confirm the focused row is
-  fully visible. Dialog:
+- **Layout audit:** `bash tests/layout-audit.sh` → **346 matrix cases, 0
+  clipping or overflow failures**, followed by the **permanent negative
+  self-test** (five injected faults, expected exit 1, correct messages) and a
+  clean return to green. `make layout-audit` runs the same checks. This includes
+  every screen at 100/115/130 %, all 25 themes, all 10 wallpapers, all six
+  typefaces across every screen and scale, all three Music states, the dialog
+  and every valid focus/scroll endpoint.
+- **Existing guarantees:** `tests/console-handoff.sh` → all cases PASS;
+  `tests/framebuffer-ownership.sh` → all checks PASS; `tests/fbdev-blit.sh` →
+  57600-pixel blit at 32/16 bpp PASS; `--verify-first-frame` → 57600 pixels,
+  57600 written, 0 stale console pixels PASS; `--keytest` → held A 1 click,
+  d-pad 3 events in 480 ms, 0 events after release PASS.
+- **Rendered evidence:** 29 `docs/ui-*.png` captures were regenerated from the
+  final build at the real 240 × 240 panel size. The before/after contact sheets
+  below show all nine screens at 100 %; a second contact sheet shows all nine
+  at 130 %. Visual review confirms the shared margins, whole rows and focus
+  rings; the mechanical audit is the clipping authority.
+- **Text scale:** all fixed labels are measured, not merely eyeballed, by the
+  audit. The Settings and Appearance 130 % lists show only whole rows, all six
+  Typeface specimens stay in their candidate family, and no pill or focus ring
+  is clipped. System labels, values and notes are centred; Home keeps the orb
+  clear of the greeting at every family; the dialog clears the background
+  focus ring. Dialog:
 
 | Dialog 100 % | Dialog 115 % | Dialog 130 % |
 |:---:|:---:|:---:|
@@ -431,6 +507,22 @@ Motion confirms a state change; it never delays input or moves the layout.
 
 **Not verified here:** physical button feel, the final repeat tempo on the
 pcal6416 expander and the panel's real refresh behaviour. Those need the RG
-Nano hardware; the simulator proves logic, layout and focus, not haptics or
-panel FPS. The host performance numbers above are relative host costs, not a
-device framerate claim.
+Nano hardware; the simulator proves logic, layout, real LVGL text metrics and
+focus, not haptics, panel FPS or the panel's own font rasteriser. The host
+performance numbers above are relative host costs, not a device framerate
+claim. The clipping audit runs on the host build; the same LVGL layout objects
+and font metrics are used on device, but a final hardware look is still needed
+to confirm the physical panel and fbcon hand-off.
+
+## Render evidence
+
+Full 240 × 240 captures, before and after the layout pass:
+
+![Before: all nine screens](ui-before-contact-sheet.png)
+![After: all nine screens](ui-after-contact-sheet.png)
+![Before/after contact sheet](ui-before-after.png)
+
+![All screens at 130 %](ui-after-contact-sheet-130.png)
+![All 25 themes](ui-themes-contact-sheet.png)
+![All 10 wallpapers](ui-wallpapers-contact-sheet.png)
+![All six typefaces at 130 %](ui-fonts-contact-sheet.png)

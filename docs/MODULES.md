@@ -32,8 +32,8 @@ allocated in `create()` and freed in the delete callback, as `music.c` does.
 
 | id | Screen | Focus starts on | Notes |
 |---|---|---|---|
-| `home` | Home | hero CTA | greeting, orb, quick tiles |
-| `apps` | Library | Music tile | four app tiles |
+| `home` | Home | Music tile | greeting, quick tiles |
+| `games` | Games | first ROM | scans `/data/roms/{gb,gbc,gba}`, launches mGBA |
 | `settings` | Settings | Appearance | sliders, switches, confirm |
 | `music` | Music | play | WAV player, rescan, timer |
 | `system` | System | back | live CPU, memory, battery, uptime |
@@ -43,13 +43,27 @@ allocated in `create()` and freed in the delete callback, as `music.c` does.
 | `wallpapers` | Wallpapers | Wallpaper | 10 styles, speed, reduce motion |
 | `typeface` | Typeface | first family | six type families |
 
+## Games
+
+`games.c` is intentionally thin: it scans the three ROM directories on every
+entry, renders a system-tagged list and hands the selected absolute path to
+`tinyos_emulator_run()`. The emulator takes over the panel and evdev device,
+returns on the X + Y chord, and the module rebuilds the shell before forcing a
+full LVGL refresh. Battery saves live next to the ROM with the extension
+replaced by `.sav`. Empty libraries show the expected directory layout and a
+reachable **Scan again** action.
+
+The library is built from `src/emulator/rom.c` and the session from
+`src/emulator/emulator.c`; the latter is the only code that includes mGBA
+headers. No copyrighted ROM or BIOS is part of the repository or the image.
+
 ## Adding a module
 
 1. Create `src/modules/example.c` with a `create()` function and a descriptor.
 2. Declare it in `src/modules/module.h`.
 3. Add the descriptor to the table in `src/modules/modules.c`.
 4. Add the source file to `SOURCES` in `src/Makefile`.
-5. Add a tile in `src/modules/apps.c` (or a quick tile on Home) that calls
+5. Add a quick tile on Home that calls
    `tinyos_shell_show(ctx, "example")`.
 6. Build `make sim` and check focus order with the simulator.
 

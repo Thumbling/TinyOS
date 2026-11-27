@@ -3,23 +3,22 @@
 **A tiny system with room to grow.**
 
 TinyOS is an independent, modular firmware for the **Anbernic RG Nano**. It is
-built from a small set of modern, upstream components and a custom LVGL user
+built from a small set of modern upstream components and a custom LVGL user
 interface designed specifically for the 240 × 240 panel and the ten hardware
-buttons. There is no vendor Android layer, no legacy frontend and no inherited
-application stack.
+buttons. The result is a small, understandable system that boots directly into
+the TinyOS shell.
 
 [![Build](https://github.com/Thumbling/TinyOS/actions/workflows/build.yml/badge.svg)](https://github.com/Thumbling/TinyOS/actions/workflows/build.yml)
 
-| Home | Library | Settings |
+| Home | Settings | Appearance |
 |:---:|:---:|:---:|
-| ![Home](docs/ui-home.png) | ![Library](docs/ui-apps.png) | ![Settings](docs/ui-settings.png) |
-| **Music** | **System** | **About** |
-| ![Music](docs/ui-music.png) | ![System](docs/ui-system.png) | ![About](docs/ui-about.png) |
-
-| Personalisation | | | |
-|:---:|:---:|:---:|:---:|
-| ![Appearance](docs/ui-appearance.png) | ![Themes](docs/ui-themes.png) | ![Wallpapers](docs/ui-wallpapers.png) | ![Typeface](docs/ui-typeface.png) |
-| **Appearance** | **25 themes** | **10 wallpapers** | **6 typefaces** |
+| ![Home](docs/ui-home.png) | ![Settings](docs/ui-settings.png) | ![Appearance](docs/ui-appearance.png) |
+| **Games** | **Music** | **System** |
+| ![Games](docs/ui-games.png) | ![Music](docs/ui-music.png) | ![System](docs/ui-system.png) |
+| **About** | **Themes** | **Wallpapers** |
+| ![About](docs/ui-about.png) | ![Themes](docs/ui-themes.png) | ![Wallpapers](docs/ui-wallpapers.png) |
+| **Typeface** | | |
+| ![Typeface](docs/ui-typeface.png) | | |
 
 | Text scale 115 % | Text scale 130 % |
 |:---:|:---:|
@@ -44,12 +43,17 @@ application stack.
 - A **Linux 6.12 LTS** firmware built with **Buildroot 2025.02.3**, **musl** and
   **BusyBox**; the kernel boots from a plain ext4 root filesystem.
 - A modern **U-Boot 2025.10** boot chain with a reproducible SD-card image.
-- Ten independent modules — Home, Library, Settings, Music, System, About,
+- **Game Boy, Game Boy Color and Game Boy Advance** emulation through the
+  vendored **mGBA 0.10.5** core: 60 Hz direct framebuffer output, RGB565
+  nearest-neighbour scaling, battery saves beside the ROM and an ALSA PCM
+  stream. The library scans `/data/roms/{gb,gbc,gba}`; no ROMs or BIOS files
+  are included.
+- Ten independent modules — Home, Games, Settings, Music, System, About,
   Appearance, Themes, Wallpapers and Typeface — sharing one focus model, a
   runtime palette engine and a compact widget toolkit.
 - Native fbdev output through the mainline **panel-mipi-dbi-spi** driver, evdev
-  input through the pcal6416 expander, AXP209 battery telemetry and an
-  ALSA-based WAV player.
+  input through the pcal6416 expander, AXP209 battery telemetry, an ALSA-based
+  WAV player and the emulator's direct PCM path.
 
 ## Stack
 
@@ -60,7 +64,8 @@ application stack.
 | Kernel | Linux 6.12.115 LTS, `sunxi_defconfig` + TinyOS fragment |
 | Userland | Buildroot 2025.02.3, musl, BusyBox |
 | UI | LVGL 9.6, custom theme and widgets |
-| Audio | ALSA, PCM16 WAV playback |
+| Audio | ALSA, PCM16 WAV playback and a direct emulator PCM stream |
+| Emulation | mGBA 0.10.5, both GBA and GB cores, software renderer |
 | Image | MBR SD image: U-Boot, FAT boot, ext4 root, FAT data |
 
 The design rationale and upstream sources are in [docs/RESEARCH.md](docs/RESEARCH.md).
@@ -73,6 +78,7 @@ The host simulator builds the complete UI without a device and writes real
 ```sh
 make sim
 ./build/tinyos-sim --screen home --out build/home.png
+./build/tinyos-sim --screen games --out build/games.png
 ./build/tinyos-sim --screen settings --out build/settings.png
 ./build/tinyos-sim --screen appearance --theme 14 --font 2 --out build/paper-plex.png
 ```
@@ -135,6 +141,11 @@ sudo dd if=tinyos-rg-nano.img of=/dev/sdX bs=4M conv=fsync status=progress
 sync
 ```
 
+The data volume starts with empty game directories (created at boot). Mount the
+FAT **TINYOS_DATA** partition and copy legally obtained ROMs into `roms/gb`,
+`roms/gbc` or `roms/gba`; TinyOS writes `.sav` files beside them. Nothing is
+downloaded or bundled.
+
 Insert the card into the RG Nano and power it on. The boot chain is:
 
 ```text
@@ -142,7 +153,13 @@ BootROM → SPL → U-Boot → boot.scr → zImage + DTB → Linux → BusyBox i
 ```
 
 A rescue shell is available on the USB serial console at **115200 8N1**
-(`ttyS0`). The UI is restarted automatically if it exits.
+(`ttyS0`). The UI is restarted automatically if it exits. Before starting it,
+`tinyos-run.sh` unbinds the framebuffer VT console and refuses to continue if
+that cannot be read back as `bind=0`; the Linux backend repeats the check
+before opening `/dev/fb0`. A `/tmp/tinyos-ui.lock` record lock permits only one
+UI process, and the first frame clears the mapped framebuffer and forces a
+synchronous full 240 × 240 refresh. See [docs/HARDWARE.md](docs/HARDWARE.md)
+for the success/failure log lines and the hardware verification boundary.
 
 ## Controls
 
@@ -156,8 +173,10 @@ A rescue shell is available on the USB serial console at **115200 8N1**
 | Select | Back |
 | Power | Short press: back; long press: AXP209 shutdown |
 
-The mapping is implemented in `src/platform/linux/input_evdev.c` and can be
-adjusted without touching the UI.
+In a game, the same buttons map to the console pad: A/B, Start/Select, the
+d-pad, and L/R for GBA. **Hold X + Y for 0.9 s to leave a game** and return to
+the library; Power exits immediately. The mapping is implemented in
+`src/platform/linux/input_evdev.c` and can be adjusted without touching the UI.
 
 ## Project layout
 
@@ -167,10 +186,12 @@ src/
   core/                settings, logging, file helpers, audio API
   ui/                  palette engine, widgets, shell, fonts and wallpapers
   ui/fonts/            generated static LVGL bitmaps (five families × eight sizes)
-  modules/             home, apps, settings, music, system, about, appearance,
+  emulator/            ROM library and mGBA session (video, input, save, audio)
+  modules/             home, games, settings, music, system, about, appearance,
                        themes, wallpapers, typeface
   platform/host/       simulator display, input, power and audio shims
   platform/linux/      fbdev, evdev, AXP209/sysfs and ALSA backends
+third_party/mgba/     vendored mGBA 0.10.5 core and license notices
 sim/                   host renderer and PNG writer
 config/lv_conf.h       generated LVGL 9.6 configuration
 buildroot-external/    Buildroot tree, board files, kernel/U-Boot fragments
@@ -185,12 +206,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layer model and
 
 - **Simulator:** builds and renders all ten screens at 100/115/130 %; it also
   captures empty/loading/error states and prints the input-repeat test.
+- **Emulator:** the GB, GBC and GBA paths pass the headless host test; the
+  production emulator and platform glue also link as a static ARM binary
+  against mGBA and LVGL. The remaining target-specific boundary is documented
+  in [docs/EMULATOR.md](docs/EMULATOR.md).
 - **Text scale:** verified at 100/115/130 % with focused, scrolled lists and no
   clipping on the 240 px canvas; screenshots are in [docs/UI.md](docs/UI.md).
 - **Input:** held A is one-shot and D-pad repeat is cancelable; the simulator
   test passes. Real button feel and repeat tempo remain hardware checks.
-- **ARM compile check:** all shared sources plus fbdev/evdev/AXP209/ALSA
-  backends compile for `arm-linux-musleabihf` with Zig and the ALSA headers.
 - **Full image:** built by the GitHub Actions workflow from the Buildroot
   external tree.
 - **Hardware:** not yet validated on a physical RG Nano. Panel init sequence,
@@ -206,6 +229,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layer model and
 - [Building and flashing](docs/BUILD.md)
 - [Module contract](docs/MODULES.md)
 - [UI and design system](docs/UI.md)
+- [Game Boy / Game Boy Color / Game Boy Advance](docs/EMULATOR.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Third-party notices](docs/THIRD_PARTY.md)
 

@@ -11,6 +11,9 @@ install -m 0644 \
 
 install -d "$TARGET_DIR/data/music"
 install -d "$TARGET_DIR/data/tinyos"
+install -d "$TARGET_DIR/data/roms/gb"
+install -d "$TARGET_DIR/data/roms/gbc"
+install -d "$TARGET_DIR/data/roms/gba"
 install -d "$TARGET_DIR/var/log"
 
 printf 'TinyOS 0.1.0\nBuilt %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

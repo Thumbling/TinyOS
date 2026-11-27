@@ -2,6 +2,7 @@
 
 #include "../core/settings.h"
 #include "../ui/fonts.h"
+#include "../ui/layout.h"
 #include "../ui/scale.h"
 #include "../ui/shell.h"
 #include "../ui/theme.h"
@@ -28,34 +29,33 @@ static void font_clicked(lv_event_t *event)
 static lv_obj_t *typeface_create(tinyos_ctx *ctx, lv_obj_t *parent)
 {
     bool large = tinyos_large_text();
-    lv_obj_t *back = tinyos_obj(parent, 10, 2, 26, 26);
-    lv_obj_add_style(back, &tinyos_theme.pill, 0);
-    lv_obj_set_style_radius(back, 10, 0);
-    lv_obj_set_style_bg_color(back, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
-    tinyos_focus(back);
-    tinyos_add_click(back, back_cb, NULL);
-    tinyos_icon(back, LV_SYMBOL_LEFT, TINYOS_COLOR_MUTED, 0, 0, 26);
-    lv_obj_center(lv_obj_get_child(back, 0));
-    tinyos_label(parent, "Typeface", &lv_font_montserrat_20, TINYOS_COLOR_TEXT,
-                 44, 2, 170, 24);
-    if (!large)
-        tinyos_label(parent, "Aa 0123  -  pick a voice", &lv_font_montserrat_10,
-                     TINYOS_COLOR_MUTED, 44, 25, 180, 12);
+    lv_obj_t *back = tinyos_back_button(parent, back_cb);
+    tinyos_page_title(parent, "Typeface", 0);
 
-    lv_obj_t *list = tinyos_obj(parent, 14, large ? 38 : 42, 212, large ? 136 : 132);
+    lv_obj_t *list = tinyos_obj(parent, TINYOS_LIST_X, TINYOS_LIST_Y, TINYOS_LIST_W,
+                                TINYOS_LIST_H);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(list, large ? 2 : 0, 0);
+    lv_obj_set_style_pad_row(list, 0, 0);
     lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_set_style_pad_top(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_bottom(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_left(list, TINYOS_LIST_PAD, 0);
+    lv_obj_set_style_pad_right(list, TINYOS_LIST_PAD, 0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    /* All six families fit at every scale, so no scrollbar is needed. */
     lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_width(list, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list, lv_color_hex(TINYOS_COLOR_MUTED), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_40, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(list, 2, LV_PART_SCROLLBAR);
     lv_obj_set_scrollable(list, true);
 
     for (int i = 0; i < TINYOS_FONT_FAMILY_COUNT; i++) {
         bool selected = i == ctx->settings.font_family;
-        lv_obj_t *row = tinyos_obj(list, 0, 0, 212, large ? 23 : 21);
+        lv_obj_t *row = tinyos_obj(list, 0, 0, TINYOS_CONTENT_W, TINYOS_ROW_H);
         lv_obj_set_width(row, LV_PCT(100));
         lv_obj_add_style(row, &tinyos_theme.row, 0);
-        lv_obj_set_style_radius(row, 9, 0);
+        lv_obj_set_style_radius(row, TINYOS_ROW_RADIUS, 0);
         if (selected)
             lv_obj_set_style_bg_color(row, lv_color_hex(TINYOS_COLOR_SURFACE_2), 0);
 
@@ -66,25 +66,34 @@ static lv_obj_t *typeface_create(tinyos_ctx *ctx, lv_obj_t *parent)
             lv_obj_set_style_bg_opa(mark, LV_OPA_COVER, 0);
         }
 
+        const lv_font_t *name_font = tinyos_text_scale() >= 130
+                                         ? &lv_font_montserrat_10
+                                         : &lv_font_montserrat_12;
         lv_obj_t *name = tinyos_label(row, tinyos_font_family_name(i),
-                                      &lv_font_montserrat_12,
+                                      name_font,
                                       selected ? TINYOS_COLOR_TEXT : TINYOS_COLOR_MUTED,
-                                      16, 2, large ? 118 : 100, large ? 20 : 15);
+                                      16, large ? 0 : 2, large ? 118 : 100,
+                                      large ? 20 : 15);
         lv_obj_set_style_text_color(name, lv_color_hex(selected ? TINYOS_COLOR_TEXT
                                                                 : TINYOS_COLOR_MUTED),
                                     0);
 
-        int sample_px = tinyos_large_text() ? tinyos_text_px(10) : 12;
+        int sample_px = 12;
         lv_obj_t *sample = tinyos_label(row, "Aa 012",
                                         tinyos_font_family(i, sample_px),
                                         selected ? TINYOS_COLOR_CYAN : TINYOS_COLOR_MUTED,
-                                        large ? 138 : 120, 2, large ? 60 : 58,
-                                        large ? 20 : 16);
-        (void)sample;
+                                        large ? 136 : 120, large ? 0 : 2,
+                                        large ? 52 : 58, large ? 20 : 16);
+        /* A specimen must stay in its candidate family at 12 px. tinyos_label
+         * normally follows the active UI typeface/size, which made the first
+         * (Montserrat) specimen switch to the selected family and ellipsise. */
+        lv_obj_set_style_text_font(sample, tinyos_font_family(i, sample_px), 0);
 
         if (selected)
-            tinyos_icon(row, LV_SYMBOL_OK, TINYOS_COLOR_CYAN, large ? 198 : 186,
-                        large ? 5 : 4, 12);
+            /* Keep the status mark on the same 5 px right padding at every
+             * text scale; the sample column grows into the extra room. */
+            tinyos_icon(row, LV_SYMBOL_OK, TINYOS_COLOR_CYAN, TINYOS_CHEVRON_X + 6,
+                        large ? 5 : 4, TINYOS_CHEVRON_SIZE);
 
         tinyos_focus(row);
         tinyos_shell_add_focus(ctx, row);
